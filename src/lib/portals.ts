@@ -1,0 +1,195 @@
+import type { PortalConfig, PortalId } from "./types";
+
+export const portals: PortalConfig[] = [
+  {
+    id: "mesa-control",
+    name: "Mesa de Control",
+    shortName: "Mesa",
+    icon: "Monitor",
+    color: "text-blue-600",
+    role: "L2_OPERADOR",
+    description: "Operaciones SPEI, dispersiones y conciliación",
+    navItems: [
+      { label: "Dashboard", href: "/mesa-control", icon: "LayoutDashboard" },
+      { label: "Operaciones SPEI", href: "/mesa-control/spei", icon: "ArrowLeftRight" },
+      { label: "Dispersiones", href: "/mesa-control/dispersiones", icon: "Send" },
+      { label: "Conciliación", href: "/mesa-control/conciliacion", icon: "GitCompare" },
+      { label: "Cuentas", href: "/mesa-control/cuentas", icon: "Wallet" },
+      { label: "Reportes", href: "/mesa-control/reportes", icon: "FileBarChart" },
+    ],
+  },
+  {
+    id: "cumplimiento",
+    name: "Cumplimiento PLD/FT",
+    shortName: "PLD",
+    icon: "ShieldCheck",
+    color: "text-red-600",
+    role: "L3_PLD",
+    description: "Prevención de lavado de dinero y financiamiento al terrorismo",
+    navItems: [
+      { label: "Dashboard", href: "/cumplimiento", icon: "LayoutDashboard" },
+      { label: "Alertas", href: "/cumplimiento/alertas", icon: "AlertTriangle", badge: 12 },
+      { label: "Reportes CNBV", href: "/cumplimiento/reportes", icon: "FileText" },
+      { label: "PEPs / Listas", href: "/cumplimiento/peps", icon: "Search" },
+      { label: "Investigaciones", href: "/cumplimiento/investigaciones", icon: "FileSearch" },
+    ],
+  },
+  {
+    id: "cobranza",
+    name: "Cobranza",
+    shortName: "Cobranza",
+    icon: "HandCoins",
+    color: "text-orange-600",
+    role: "L2_GESTOR",
+    description: "Gestión de cartera vencida y recuperación",
+    navItems: [
+      { label: "Dashboard", href: "/cobranza", icon: "LayoutDashboard" },
+      { label: "Cartera", href: "/cobranza/cartera", icon: "Briefcase" },
+      { label: "Estrategias", href: "/cobranza/estrategias", icon: "Target" },
+      { label: "Gestiones", href: "/cobranza/gestiones", icon: "Phone" },
+    ],
+  },
+  {
+    id: "comercial",
+    name: "Comercial",
+    shortName: "Comercial",
+    icon: "TrendingUp",
+    color: "text-green-600",
+    role: "L2_COMERCIAL",
+    description: "Pipeline comercial, leads y comisiones",
+    navItems: [
+      { label: "Dashboard", href: "/comercial", icon: "LayoutDashboard" },
+      { label: "Pipeline", href: "/comercial/pipeline", icon: "Kanban" },
+      { label: "Leads", href: "/comercial/leads", icon: "Users" },
+      { label: "Comisiones", href: "/comercial/comisiones", icon: "DollarSign" },
+    ],
+  },
+  {
+    id: "soporte",
+    name: "Soporte & UNE",
+    shortName: "Soporte",
+    icon: "Headphones",
+    color: "text-purple-600",
+    role: "L2_SOPORTE",
+    description: "Atención al cliente, tickets y quejas CONDUSEF",
+    navItems: [
+      { label: "Dashboard", href: "/soporte", icon: "LayoutDashboard" },
+      { label: "Tickets", href: "/soporte/tickets", icon: "Ticket", badge: 8 },
+      { label: "UNE / CONDUSEF", href: "/soporte/une", icon: "Scale" },
+      { label: "Base Conocimiento", href: "/soporte/conocimiento", icon: "BookOpen" },
+    ],
+  },
+  {
+    id: "seguridad",
+    name: "Seguridad & IT",
+    shortName: "Seguridad",
+    icon: "Shield",
+    color: "text-slate-600",
+    role: "L4_SEGURIDAD",
+    description: "Seguridad informática, IAM y auditoría",
+    navItems: [
+      { label: "Dashboard", href: "/seguridad", icon: "LayoutDashboard" },
+      { label: "IAM", href: "/seguridad/iam", icon: "UserCog" },
+      { label: "Logs", href: "/seguridad/logs", icon: "ScrollText" },
+      { label: "Incidentes", href: "/seguridad/incidentes", icon: "AlertOctagon" },
+    ],
+  },
+  {
+    id: "marketing",
+    name: "Notificaciones & Marketing",
+    shortName: "Marketing",
+    icon: "Megaphone",
+    color: "text-pink-600",
+    role: "L3_MARKETING",
+    description: "Campañas, notificaciones push y email marketing",
+    navItems: [
+      { label: "Dashboard", href: "/marketing", icon: "LayoutDashboard" },
+      { label: "Campañas", href: "/marketing/campanas", icon: "Rocket" },
+      { label: "Push / Email", href: "/marketing/push", icon: "Bell" },
+      { label: "Plantillas", href: "/marketing/plantillas", icon: "LayoutTemplate" },
+    ],
+  },
+  {
+    id: "ejecutivo",
+    name: "Ejecutivo",
+    shortName: "Ejecutivo",
+    icon: "Crown",
+    color: "text-amber-600",
+    role: "L5_EJECUTIVO",
+    description: "Visión ejecutiva: P&L, KPIs y reportes de consejo",
+    navItems: [
+      { label: "Dashboard", href: "/ejecutivo", icon: "LayoutDashboard" },
+      { label: "P&L", href: "/ejecutivo/pnl", icon: "Receipt" },
+      { label: "KPIs", href: "/ejecutivo/kpis", icon: "Gauge" },
+      { label: "Board", href: "/ejecutivo/board", icon: "Presentation" },
+    ],
+  },
+  {
+    id: "admin",
+    name: "Admin & Config",
+    shortName: "Admin",
+    icon: "Settings",
+    color: "text-gray-600",
+    role: "L4_ADMIN",
+    description: "Administración de usuarios, roles y catálogos del sistema",
+    navItems: [
+      { label: "Dashboard", href: "/admin", icon: "LayoutDashboard" },
+      { label: "Usuarios", href: "/admin/usuarios", icon: "Users" },
+      { label: "Roles", href: "/admin/roles", icon: "KeyRound" },
+      { label: "Catálogos", href: "/admin/catalogos", icon: "Database" },
+    ],
+  },
+  {
+    id: "cliente",
+    name: "Portal Web Cliente",
+    shortName: "Cliente",
+    icon: "User",
+    color: "text-emerald-600",
+    role: "EXT_CLIENTE",
+    description: "Banca web: saldo, transferencias, pagos y estados de cuenta",
+    navItems: [
+      { label: "Dashboard", href: "/cliente", icon: "LayoutDashboard" },
+      { label: "Transferencias", href: "/cliente/transferencias", icon: "ArrowLeftRight" },
+      { label: "Pagos", href: "/cliente/pagos", icon: "CreditCard" },
+      { label: "Estados de Cuenta", href: "/cliente/estados-cuenta", icon: "FileText" },
+      { label: "Perfil", href: "/cliente/perfil", icon: "UserCircle" },
+    ],
+  },
+  {
+    id: "sayo-mx",
+    name: "Sitio sayo.mx",
+    shortName: "sayo.mx",
+    icon: "Globe",
+    color: "text-[#472913]",
+    role: "EXT_CLIENTE",
+    description: "Sitio público: productos, información y legal",
+    navItems: [
+      { label: "Home", href: "/sayo-mx", icon: "Home" },
+      { label: "Productos", href: "/sayo-mx/productos", icon: "Package" },
+      { label: "Nosotros", href: "/sayo-mx/nosotros", icon: "Building2" },
+      { label: "Legal", href: "/sayo-mx/legal", icon: "Scale" },
+    ],
+  },
+];
+
+export function getPortal(id: PortalId): PortalConfig | undefined {
+  return portals.find((p) => p.id === id);
+}
+
+export function getPortalsByRole(role: string): PortalConfig[] {
+  return portals.filter((p) => p.role === role);
+}
+
+// Demo users for login selector
+export const demoUsers = [
+  { name: "Carlos Mendoza", role: "L2_OPERADOR" as const, portal: "mesa-control" as const, email: "carlos.mendoza@sayo.mx" },
+  { name: "Ana García", role: "L3_PLD" as const, portal: "cumplimiento" as const, email: "ana.garcia@sayo.mx" },
+  { name: "Roberto López", role: "L2_GESTOR" as const, portal: "cobranza" as const, email: "roberto.lopez@sayo.mx" },
+  { name: "María Fernández", role: "L2_COMERCIAL" as const, portal: "comercial" as const, email: "maria.fernandez@sayo.mx" },
+  { name: "Luis Torres", role: "L2_SOPORTE" as const, portal: "soporte" as const, email: "luis.torres@sayo.mx" },
+  { name: "Diana Ruiz", role: "L4_SEGURIDAD" as const, portal: "seguridad" as const, email: "diana.ruiz@sayo.mx" },
+  { name: "Pedro Sánchez", role: "L3_MARKETING" as const, portal: "marketing" as const, email: "pedro.sanchez@sayo.mx" },
+  { name: "Patricia Morales", role: "L5_EJECUTIVO" as const, portal: "ejecutivo" as const, email: "patricia.morales@sayo.mx" },
+  { name: "Jorge Ramírez", role: "L4_ADMIN" as const, portal: "admin" as const, email: "jorge.ramirez@sayo.mx" },
+  { name: "Sofía Hernández", role: "EXT_CLIENTE" as const, portal: "cliente" as const, email: "sofia.hernandez@gmail.com" },
+];
