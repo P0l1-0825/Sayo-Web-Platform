@@ -1,0 +1,4 @@
+1:"$Sreact.fragment"
+2:I[8480,["/Sayo-Web-Platform/_next/static/chunks/6242b735b76d43d7.js","/Sayo-Web-Platform/_next/static/chunks/8c0decce7f152b7b.js"],"default"]
+3:I[79549,["/Sayo-Web-Platform/_next/static/chunks/6242b735b76d43d7.js","/Sayo-Web-Platform/_next/static/chunks/8c0decce7f152b7b.js"],"default"]
+0:{"buildId":"lj7ZOi3Bc1mIL_GdBw6S3","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}

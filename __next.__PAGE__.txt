@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+3:I[89187,["/Sayo-Web-Platform/_next/static/chunks/6242b735b76d43d7.js","/Sayo-Web-Platform/_next/static/chunks/8c0decce7f152b7b.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"buildId":"lj7ZOi3Bc1mIL_GdBw6S3","rsc":["$","$1","c",{"children":["$L2",null,["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"loading":null,"isPartial":false}
+5:null
+2:E{"digest":"NEXT_REDIRECT;replace;/login;307;"}
