@@ -121,3 +121,49 @@ export function getSeverityColor(severity: string): string {
   }
   return colors[severity] || "bg-gray-100 text-gray-600"
 }
+
+// --- CSV Export ---
+export function exportToCSV<T extends Record<string, unknown>>(
+  data: T[],
+  filename: string,
+  columns?: { key: string; label: string }[]
+) {
+  if (data.length === 0) return
+  const keys = columns ? columns.map((c) => c.key) : Object.keys(data[0])
+  const headers = columns ? columns.map((c) => c.label) : keys
+  const csvContent = [
+    headers.join(","),
+    ...data.map((row) =>
+      keys
+        .map((key) => {
+          const val = row[key]
+          const str = val === null || val === undefined ? "" : String(val)
+          return str.includes(",") || str.includes('"') || str.includes("\n")
+            ? `"${str.replace(/"/g, '""')}"`
+            : str
+        })
+        .join(",")
+    ),
+  ].join("\n")
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+  const link = document.createElement("a")
+  link.href = URL.createObjectURL(blob)
+  link.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+
+// --- Copy to clipboard ---
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// --- Generate ID ---
+export function generateId(prefix: string): string {
+  return `${prefix}-${String(Date.now()).slice(-6)}`
+}

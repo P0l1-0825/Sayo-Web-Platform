@@ -14,7 +14,9 @@ export type PortalId =
   | "ejecutivo"
   | "admin"
   | "cliente"
-  | "sayo-mx";
+  | "sayo-mx"
+  | "originacion"
+  | "tesoreria";
 
 export type UserRole =
   | "L2_OPERADOR"
@@ -24,6 +26,8 @@ export type UserRole =
   | "L3_BACKOFFICE"
   | "L3_PLD"
   | "L3_MARKETING"
+  | "L3_ORIGINACION"
+  | "L3_TESORERIA"
   | "L4_SEGURIDAD"
   | "L4_ADMIN"
   | "L5_EJECUTIVO"
@@ -117,7 +121,7 @@ export interface Transaction {
 }
 
 // --- PLD/Compliance ---
-export type AlertSeverity = "alta" | "media" | "baja";
+export type AlertSeverity = "critica" | "alta" | "media" | "baja";
 export type AlertStatus = "activa" | "investigando" | "descartada" | "escalada" | "resuelta";
 
 export interface ComplianceAlert {
@@ -170,6 +174,7 @@ export interface CollectionAction {
   date: string;
   agent: string;
   notes: string;
+  nextAction?: string;
 }
 
 // --- Comercial ---
@@ -354,4 +359,379 @@ export interface DataTableColumn<T> {
   sortable?: boolean;
   filterable?: boolean;
   render?: (value: T[keyof T], row: T) => React.ReactNode;
+}
+
+// ============================================================
+// ORIGINACIÓN DE CRÉDITOS
+// ============================================================
+
+export type CreditApplicationStatus =
+  | "capturada"
+  | "por_aprobar"
+  | "en_comite"
+  | "por_disponer"
+  | "activa"
+  | "saldada"
+  | "rechazada"
+  | "cancelada"
+  | "reactivada";
+
+export type ClientType = "PFAE" | "PM";
+
+export interface CreditApplication {
+  id: string;
+  folio: string;
+  clientName: string;
+  clientId: string;
+  clientType: ClientType;
+  product: string;
+  amount: number;
+  term: number; // months
+  rate: number; // annual %
+  status: CreditApplicationStatus;
+  assignedTo: string;
+  createdAt: string;
+  updatedAt: string;
+  bureauScore?: number;
+  validations?: Record<string, boolean>;
+  notes?: string;
+}
+
+export interface CreditSimulation {
+  id: string;
+  product: string;
+  amount: number;
+  rate: number;
+  term: number;
+  monthlyPayment: number;
+  totalInterest: number;
+  totalPayment: number;
+  cat: number; // Costo Anual Total %
+  amortization: AmortizationRow[];
+  createdAt: string;
+}
+
+export interface AmortizationRow {
+  period: number;
+  initialBalance: number;
+  capital: number;
+  interest: number;
+  iva: number;
+  totalPayment: number;
+  finalBalance: number;
+}
+
+export interface ClientPFAE {
+  id: string;
+  // Identificación
+  firstName: string;
+  lastName: string;
+  motherLastName: string;
+  rfc: string;
+  curp: string;
+  birthDate: string;
+  nationality: string;
+  civilStatus: string;
+  idType: "INE" | "pasaporte" | "cédula";
+  idNumber: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  // Empleo
+  occupation: string;
+  company: string;
+  position: string;
+  seniority: number; // years
+  contractType: string;
+  companyAddress: string;
+  // Ingresos
+  monthlyIncome: number;
+  otherIncome: number;
+  monthlyExpenses: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  // PLD
+  resourceOrigin: string;
+  isPEP: boolean;
+  pepRelation?: string;
+  fundCountry: string;
+  creditPurpose: string;
+}
+
+export interface ClientPM {
+  id: string;
+  // Empresa
+  legalName: string;
+  rfc: string;
+  businessObject: string;
+  sector: string;
+  industry: string;
+  fiscalAddress: string;
+  incorporationDate: string;
+  // Notarial
+  deedNumber: string;
+  notary: string;
+  notaryNumber: string;
+  deedDate: string;
+  // Representante Legal
+  repLegalName: string;
+  repLegalRFC: string;
+  repLegalCURP: string;
+  powerOfAttorney: string;
+  // Operaciones
+  mainActivity: string;
+  annualSales: number;
+  employees: number;
+  mainClients: string;
+  mainSuppliers: string;
+  // Beneficiario Real
+  beneficialOwner: string;
+  beneficialOwnerRFC: string;
+  ownershipPercentage: number;
+  // PLD
+  resourceOrigin: string;
+  isPEP: boolean;
+  fundCountry: string;
+  creditPurpose: string;
+}
+
+export interface CreditLine {
+  id: string;
+  creditNumber: string;
+  clientName: string;
+  clientId: string;
+  product: string;
+  limit: number;
+  available: number;
+  used: number;
+  rate: number;
+  expirationDate: string;
+  status: "activa" | "suspendida" | "vencida" | "cancelada";
+  startDate: string;
+}
+
+export interface CommitteeDecision {
+  id: string;
+  applicationId: string;
+  clientName: string;
+  amount: number;
+  date: string;
+  members: { name: string; vote: "aprobar" | "rechazar" | "condicionar"; comment?: string }[];
+  decision: "aprobada" | "rechazada" | "condicionada";
+  conditions?: string;
+  minutes?: string;
+}
+
+export interface Disposition {
+  id: string;
+  creditLineId: string;
+  clientName: string;
+  amount: number;
+  destinationAccount: string;
+  date: string;
+  folio: string;
+  status: "por_autorizar" | "autorizada" | "dispersada" | "cancelada";
+  authorizedBy?: string;
+}
+
+// ============================================================
+// TESORERÍA
+// ============================================================
+
+export type TreasuryPaymentType = "individual" | "empresa" | "referenciado" | "dispersion" | "spei_in" | "spei_out";
+export type TreasuryPaymentStatus = "pendiente" | "autorizado" | "procesado" | "rechazado" | "cancelado" | "completado" | "en_proceso";
+
+export interface TreasuryPayment {
+  id: string;
+  folio: string;
+  type: TreasuryPaymentType;
+  beneficiaryName: string;
+  beneficiaryBank: string;
+  beneficiaryClabe: string;
+  amount: number;
+  concept: string;
+  reference: string;
+  sourceAccount: string;
+  status: TreasuryPaymentStatus;
+  requestedBy: string;
+  authorizedBy?: string;
+  date: string;
+  processedAt?: string;
+  speiTracking?: string;
+}
+
+export interface PaymentBatch {
+  id: string;
+  name: string;
+  type: "nomina" | "dispersiones" | "proveedores" | "custom";
+  totalRecords: number;
+  totalAmount: number;
+  successCount: number;
+  errorCount: number;
+  status: "pendiente" | "procesando" | "completado" | "parcial" | "fallido" | "procesado" | "error";
+  uploadedBy: string;
+  createdBy?: string;
+  date: string;
+  processedAt?: string;
+}
+
+export interface PaymentAuthorization {
+  id: string;
+  paymentId: string;
+  paymentFolio: string;
+  beneficiaryName: string;
+  amount: number;
+  requestedBy: string;
+  requiredLevel: "L3" | "L4";
+  status: "pendiente" | "autorizado" | "rechazado";
+  authorizedBy?: string;
+  rejectionReason?: string;
+  date: string;
+}
+
+// ============================================================
+// PLD/COMPLIANCE EXPANDIDO
+// ============================================================
+
+export interface PLDMonitorRule {
+  id: string;
+  name: string;
+  description: string;
+  threshold: string;
+  type: "monto" | "frecuencia" | "patron" | "comportamiento";
+  active: boolean;
+  alertsGenerated: number;
+}
+
+export interface PLDMonitorAlert {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  clientName: string;
+  clientId: string;
+  description: string;
+  triggeredAmount: number;
+  threshold: string;
+  relatedOperations: number;
+  severity: AlertSeverity;
+  status: AlertStatus;
+  date: string;
+}
+
+export interface SanctionListEntry {
+  id: string;
+  listType: "OFAC_SDN" | "UE" | "ONU" | "PEP_NAC" | "INTERPOL";
+  name: string;
+  matchPercentage: number;
+  matchedWith: string;
+  country: string;
+  date: string;
+  status: "pendiente" | "confirmado" | "descartado";
+}
+
+export interface EBRAssessment {
+  id: string;
+  clientName: string;
+  clientId: string;
+  clientType: ClientType;
+  riskLevel: "bajo" | "medio" | "alto" | "prohibido";
+  score: number;
+  factors: { factor: string; weight: number; value: string; score: number }[];
+  lastReview: string;
+  nextReview: string;
+  reviewer: string;
+}
+
+export interface REDECOComplaint {
+  id: string;
+  folio: string;
+  type: "REDECO" | "REUNE";
+  clientName: string;
+  product: string;
+  reason: string;
+  status: "recibida" | "en_atencion" | "resuelta" | "no_favorable";
+  slaDate: string;
+  receivedDate: string;
+  resolvedDate?: string;
+  resolution?: string;
+}
+
+export interface RegulatoryCalendarEvent {
+  id: string;
+  title: string;
+  type: "reporte" | "auditoria" | "capacitacion" | "entrega";
+  entity: "CNBV" | "CONDUSEF" | "SAT" | "BANXICO" | "Interno";
+  dueDate: string;
+  status: "pendiente" | "completado" | "vencido";
+  assignedTo: string;
+  notes?: string;
+}
+
+// ============================================================
+// ADMIN EXPANDIDO
+// ============================================================
+
+export interface CatalogItem {
+  id: string;
+  catalogType: string;
+  key: string;
+  name: string;
+  description?: string;
+  active: boolean;
+  order: number;
+}
+
+export interface ParameterConfig {
+  id: string;
+  category: "general" | "credito" | "pld" | "tesoreria" | "notificaciones";
+  key: string;
+  value: string;
+  type: "string" | "number" | "boolean" | "json";
+  description: string;
+  lastModified: string;
+  modifiedBy: string;
+}
+
+export interface NotificationTemplate {
+  id: string;
+  event: string;
+  channel: "email" | "sms" | "push";
+  subject: string;
+  body: string;
+  variables: string[];
+  active: boolean;
+  lastEdited: string;
+}
+
+// ============================================================
+// MESA DE CONTROL EXPANDIDO
+// ============================================================
+
+export interface PortfolioClosing {
+  id: string;
+  date: string;
+  type: "diario" | "mensual";
+  vigente: number;
+  preventiva: number;
+  vencida: number;
+  castigada: number;
+  total: number;
+  status: "generado" | "validado" | "publicado";
+  generatedBy: string;
+}
+
+export type SubstitutionType = "saldo_capital" | "saldo_liquidar" | "saldo_total" | "credito_nuevo";
+
+export interface ClientSubstitution {
+  id: string;
+  folio: string;
+  originalCreditId: string;
+  originalClientName: string;
+  newClientName: string;
+  substitutionType: SubstitutionType;
+  amount: number;
+  date: string;
+  status: "pendiente" | "aprobada" | "procesada" | "rechazada";
+  processedBy?: string;
 }

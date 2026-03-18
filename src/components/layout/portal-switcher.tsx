@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Home } from "lucide-react"
 
 interface PortalSwitcherProps {
   currentPortal: PortalConfig
@@ -29,6 +29,14 @@ export function PortalSwitcher({ currentPortal }: PortalSwitcherProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Cambiar Portal</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={() => router.push("/login")}
+        >
+          <Home className="size-3.5 text-sayo-cafe" />
+          <span className="text-xs font-semibold">Selector de Portales</span>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         {internalPortals.map((portal) => (
           <DropdownMenuItem

@@ -1,10 +1,22 @@
 "use client"
 
-import { usePathname } from "next/navigation"
-import { Bell, ChevronRight, Search } from "lucide-react"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { Bell, ChevronRight, Search, LogOut, User, Settings } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { PortalSwitcher } from "./portal-switcher"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/lib/auth-context"
 import type { PortalConfig } from "@/lib/types"
+import { toast } from "sonner"
 
 interface HeaderProps {
   portal: PortalConfig
@@ -12,6 +24,8 @@ interface HeaderProps {
 
 export function Header({ portal }: HeaderProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, logout, isDemoMode } = useAuth()
 
   // Generate breadcrumbs from pathname
   const segments = pathname.split("/").filter(Boolean)
@@ -26,6 +40,17 @@ export function Header({ portal }: HeaderProps) {
     }
   })
 
+  const handleLogout = async () => {
+    await logout()
+    toast.success("Sesión cerrada")
+    router.push("/login")
+  }
+
+  // Get user initials for avatar
+  const initials = user
+    ? user.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "SA"
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
       {/* Left: Breadcrumbs */}
@@ -34,15 +59,18 @@ export function Header({ portal }: HeaderProps) {
           {breadcrumbs.map((crumb, i) => (
             <div key={crumb.href} className="flex items-center gap-1">
               {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
-              <span
-                className={
-                  crumb.isLast
-                    ? "font-medium text-foreground"
-                    : "text-muted-foreground"
-                }
-              >
-                {crumb.label}
-              </span>
+              {crumb.isLast ? (
+                <span className="font-medium text-foreground">
+                  {crumb.label}
+                </span>
+              ) : (
+                <Link
+                  href={crumb.href}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {crumb.label}
+                </Link>
+              )}
             </div>
           ))}
         </nav>
@@ -50,6 +78,13 @@ export function Header({ portal }: HeaderProps) {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-3">
+        {/* Demo Mode Badge */}
+        {isDemoMode && (
+          <Badge variant="outline" className="text-[9px] text-orange-600 border-orange-300 bg-orange-50">
+            DEMO
+          </Badge>
+        )}
+
         {/* Search */}
         <button className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
           <Search className="size-4" />
@@ -64,14 +99,46 @@ export function Header({ portal }: HeaderProps) {
         {/* Portal Switcher */}
         <PortalSwitcher currentPortal={portal} />
 
-        {/* User Avatar */}
-        <div className="flex items-center gap-2">
-          <Avatar size="sm">
-            <AvatarFallback className="bg-sayo-cafe text-white text-xs">
-              CM
-            </AvatarFallback>
-          </Avatar>
-        </div>
+        {/* User Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger className="outline-none">
+            <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+              <Avatar size="sm">
+                <AvatarFallback className="bg-sayo-cafe text-white text-xs">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              {user && (
+                <div className="hidden sm:block text-left">
+                  <p className="text-xs font-medium leading-none">{user.fullName}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{user.role.replace(/_/g, " ")}</p>
+                </div>
+              )}
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div>
+                <p className="text-sm font-medium">{user?.fullName || "Usuario"}</p>
+                <p className="text-[10px] text-muted-foreground">{user?.email}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push("/cliente/perfil")}>
+              <User className="size-3.5" />
+              <span className="text-xs">Mi Perfil</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push("/admin")}>
+              <Settings className="size-3.5" />
+              <span className="text-xs">Configuración</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer gap-2 text-red-600 focus:text-red-600" onClick={handleLogout}>
+              <LogOut className="size-3.5" />
+              <span className="text-xs">Cerrar Sesión</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   )

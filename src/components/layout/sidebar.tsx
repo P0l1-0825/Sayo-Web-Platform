@@ -12,6 +12,9 @@ import {
   Settings, Database, KeyRound, CreditCard, UserCircle, Home, Package, Building2,
   Globe, Monitor, ShieldCheck, HandCoins, TrendingUp, Headphones, Megaphone, User,
   ArrowDownLeft, ArrowUpRight, Kanban,
+  FileSignature, Landmark, Calculator, ClipboardList, UserCheck, Gavel,
+  CircleDollarSign, Import, Ban, Clock, ListChecks, FolderOpen, CalendarClock,
+  FileWarning, ScanSearch, RefreshCw,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -22,6 +25,9 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Settings, Database, KeyRound, CreditCard, UserCircle, Home, Package, Building2,
   Globe, Monitor, ShieldCheck, HandCoins, TrendingUp, Headphones, Megaphone, User,
   ArrowDownLeft, ArrowUpRight, Kanban,
+  FileSignature, Landmark, Calculator, ClipboardList, UserCheck, Gavel,
+  CircleDollarSign, Import, Ban, Clock, ListChecks, FolderOpen, CalendarClock,
+  FileWarning, ScanSearch, RefreshCw,
 }
 
 interface SidebarProps {
@@ -39,8 +45,12 @@ export function Sidebar({ portal, collapsed = false }: SidebarProps) {
         collapsed ? "w-16" : "w-64"
       )}
     >
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
+      {/* Logo — links back to portal selector */}
+      <Link
+        href="/login"
+        className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4 hover:bg-sidebar-accent/50 transition-colors"
+        title="Volver al selector de portales"
+      >
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sayo-cafe text-white font-bold text-sm">
           S
         </div>
@@ -50,7 +60,7 @@ export function Sidebar({ portal, collapsed = false }: SidebarProps) {
             <span className="text-[10px] text-muted-foreground leading-tight">{portal.shortName}</span>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">

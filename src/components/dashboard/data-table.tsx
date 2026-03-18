@@ -22,7 +22,15 @@ import {
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Download } from "lucide-react"
+import { exportToCSV } from "@/lib/utils"
+
+interface StatusTab {
+  label: string
+  value: string
+  count?: number
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -30,6 +38,11 @@ interface DataTableProps<TData, TValue> {
   searchKey?: string
   searchPlaceholder?: string
   pageSize?: number
+  exportFilename?: string
+  statusTabs?: StatusTab[]
+  statusKey?: string
+  onRowClick?: (row: TData) => void
+  toolbar?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -38,12 +51,26 @@ export function DataTable<TData, TValue>({
   searchKey,
   searchPlaceholder = "Buscar...",
   pageSize = 10,
+  exportFilename,
+  statusTabs,
+  statusKey,
+  onRowClick,
+  toolbar,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [activeTab, setActiveTab] = React.useState("all")
+
+  const filteredData = React.useMemo(() => {
+    if (!statusKey || activeTab === "all") return data
+    return data.filter((row) => {
+      const val = (row as Record<string, unknown>)[statusKey]
+      return val === activeTab
+    })
+  }, [data, statusKey, activeTab])
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -51,33 +78,72 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    state: {
-      sorting,
-      columnFilters,
-    },
-    initialState: {
-      pagination: {
-        pageSize,
-      },
-    },
+    state: { sorting, columnFilters },
+    initialState: { pagination: { pageSize } },
   })
+
+  const handleExport = () => {
+    if (!exportFilename) return
+    const rows = table.getFilteredRowModel().rows.map((r) => r.original as Record<string, unknown>)
+    exportToCSV(rows, exportFilename)
+  }
 
   return (
     <div className="space-y-3">
-      {/* Search */}
-      {searchKey && (
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={searchPlaceholder}
-            value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn(searchKey)?.setFilterValue(event.target.value)
-            }
-            className="pl-9 h-9 text-sm"
-          />
+      {/* Status Tabs */}
+      {statusTabs && (
+        <div className="flex items-center gap-1 flex-wrap">
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              activeTab === "all"
+                ? "bg-sayo-cafe text-white"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            Todos ({data.length})
+          </button>
+          {statusTabs.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                activeTab === tab.value
+                  ? "bg-sayo-cafe text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              {tab.label} {tab.count !== undefined && `(${tab.count})`}
+            </button>
+          ))}
         </div>
       )}
+
+      {/* Search + Actions */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        {searchKey && (
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={searchPlaceholder}
+              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
+              onChange={(event) =>
+                table.getColumn(searchKey)?.setFilterValue(event.target.value)
+              }
+              className="pl-9 h-9 text-sm"
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          {toolbar}
+          {exportFilename && (
+            <Button variant="outline" size="sm" onClick={handleExport} className="h-9 gap-1.5">
+              <Download className="size-3.5" />
+              CSV
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Table */}
       <div className="rounded-lg border overflow-hidden">
@@ -92,10 +158,7 @@ export function DataTable<TData, TValue>({
                   >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
@@ -106,7 +169,8 @@ export function DataTable<TData, TValue>({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="text-sm"
+                  className={`text-sm ${onRowClick ? "cursor-pointer hover:bg-muted/30" : ""}`}
+                  onClick={() => onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-2.5">
@@ -130,45 +194,26 @@ export function DataTable<TData, TValue>({
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {table.getFilteredRowModel().rows.length} resultado(s)
+          {activeTab !== "all" && statusTabs && (
+            <Badge variant="outline" className="ml-2 text-[10px]">
+              Filtro: {statusTabs.find((t) => t.value === activeTab)?.label}
+            </Badge>
+          )}
         </p>
         <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
-            className="size-8 p-0"
-          >
+          <Button variant="outline" size="sm" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()} className="size-8 p-0">
             <ChevronsLeft className="size-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            className="size-8 p-0"
-          >
+          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="size-8 p-0">
             <ChevronLeft className="size-4" />
           </Button>
           <span className="text-xs text-muted-foreground px-2">
             {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            className="size-8 p-0"
-          >
+          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="size-8 p-0">
             <ChevronRight className="size-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
-            className="size-8 p-0"
-          >
+          <Button variant="outline" size="sm" onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()} className="size-8 p-0">
             <ChevronsRight className="size-4" />
           </Button>
         </div>
