@@ -1,11 +1,26 @@
 // ============================================================
 // SAYO — API Client
 // Wraps fetch() to call the backend gateway (sayo-platform).
-// In demo mode, the backend itself returns mock data — the
-// frontend no longer needs its own isDemoMode logic.
+// When API is available, delegates to backend (which handles demo mode).
+// When API is NOT available (no NEXT_PUBLIC_API_URL), services must
+// use their own isDemoMode fallback with inline demo data.
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787"
+import { isDemoMode as _isDemoMode } from "./supabase"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
+
+/**
+ * Whether the API backend is configured and reachable.
+ * When false, services should use inline demo data instead of calling api.get().
+ */
+export const isApiConfigured = API_BASE.length > 0
+
+/**
+ * Re-export isDemoMode for services that need to check before calling API.
+ * When true, services should return demo data without making network calls.
+ */
+export { _isDemoMode as isDemoMode }
 
 function getStoredToken(): string | null {
   if (typeof window === "undefined") return null
