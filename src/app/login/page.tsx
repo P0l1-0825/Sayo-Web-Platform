@@ -34,7 +34,7 @@ type LoginMode = "selector" | "credentials" | "register" | "forgot"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, register, demoLogin, resetPassword, isAuthenticated, isDemoMode, user, isLoading: authLoading, error: authError, clearError } = useAuth()
+  const { login, logout, register, demoLogin, resetPassword, isAuthenticated, isDemoMode, user, isLoading: authLoading, error: authError, clearError } = useAuth()
 
   const [mode, setMode] = React.useState<LoginMode>("selector")
   const [email, setEmail] = React.useState("")
@@ -47,13 +47,29 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = React.useState("")
   const [forgotSent, setForgotSent] = React.useState(false)
   const [successOpen, setSuccessOpen] = React.useState(false)
+  const [loggingOut, setLoggingOut] = React.useState(false)
 
-  // Redirect if already authenticated
+  // Handle ?logout=true param — clear session so user can switch portals
   React.useEffect(() => {
-    if (isAuthenticated && user) {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("logout") === "true" && isAuthenticated) {
+      setLoggingOut(true)
+      logout().then(() => {
+        setLoggingOut(false)
+        window.history.replaceState({}, "", "/login")
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Redirect if already authenticated (skip during logout)
+  React.useEffect(() => {
+    if (loggingOut) return
+    const params = new URLSearchParams(window.location.search)
+    if (isAuthenticated && user && params.get("logout") !== "true") {
       router.push(`/${user.portal}`)
     }
-  }, [isAuthenticated, user, router])
+  }, [isAuthenticated, user, router, loggingOut])
 
   // Handle demo portal selection (direct access)
   const handlePortalSelect = (portalId: string) => {

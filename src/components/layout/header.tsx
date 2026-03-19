@@ -43,7 +43,7 @@ export function Header({ portal }: HeaderProps) {
   const handleLogout = async () => {
     await logout()
     toast.success("Sesión cerrada")
-    router.push("/login")
+    router.push("/login?logout=true")
   }
 
   // Get user initials for avatar
