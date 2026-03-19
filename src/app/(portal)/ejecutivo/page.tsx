@@ -31,14 +31,14 @@ export default function EjecutivoDashboard() {
   const { data: pnlItems, isLoading: pnlLoading, error: pnlError, refetch: refetchPnl } = usePnL()
   const { data: kpis, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useKPIs()
   const [period, setPeriod] = React.useState("Último Mes")
+  const [productDialogOpen, setProductDialogOpen] = React.useState(false)
+  const [selectedProduct, setSelectedProduct] = React.useState<{ name: string; value: number } | null>(null)
+  const [kpiDialogOpen, setKpiDialogOpen] = React.useState(false)
 
   if (pnlLoading || kpisLoading) return <DashboardSkeleton variant="stats-and-table" />
   if (pnlError) return <ErrorCard message={pnlError} onRetry={refetchPnl} />
   if (kpisError) return <ErrorCard message={kpisError} onRetry={refetchKpis} />
   if (!pnlItems || !kpis) return null
-  const [productDialogOpen, setProductDialogOpen] = React.useState(false)
-  const [selectedProduct, setSelectedProduct] = React.useState<{ name: string; value: number } | null>(null)
-  const [kpiDialogOpen, setKpiDialogOpen] = React.useState(false)
 
   const ingresos = pnlItems.filter((i) => i.category === "Ingresos")
   const gastos = pnlItems.filter((i) => i.category === "Gastos")
