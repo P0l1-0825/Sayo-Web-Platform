@@ -179,9 +179,8 @@ export const cardService = {
       return newCard
     }
     return api.post<Card>(CARD_API, {
-      user_id: "me",
-      type,
-      name_on_card: nameOnCard,
+      card_type: type.toUpperCase(),
+      name_on_card: nameOnCard || undefined,
     })
   },
 
@@ -191,7 +190,7 @@ export const cardService = {
       if (card) card.status = "active"
       return { success: true }
     }
-    return api.post<{ success: boolean }>(`${CARD_API}/activate`, { card_id: cardId, pin })
+    return api.post<{ success: boolean }>(`${CARD_API}/${cardId}/activate`, { pin })
   },
 
   async blockCard(cardId: string, reason: string): Promise<{ success: boolean }> {
@@ -200,7 +199,7 @@ export const cardService = {
       if (card) card.status = "blocked"
       return { success: true }
     }
-    return api.patch<{ success: boolean }>(`${CARD_API}/block`, { card_id: cardId, reason })
+    return api.post<{ success: boolean }>(`${CARD_API}/${cardId}/block`, { reason })
   },
 
   async unblockCard(cardId: string): Promise<{ success: boolean }> {
@@ -209,7 +208,7 @@ export const cardService = {
       if (card) card.status = "active"
       return { success: true }
     }
-    return api.patch<{ success: boolean }>(`${CARD_API}/unblock`, { card_id: cardId })
+    return api.post<{ success: boolean }>(`${CARD_API}/${cardId}/unblock`, {})
   },
 
   async refreshCvv(cardId: string): Promise<CardSensitiveData> {
