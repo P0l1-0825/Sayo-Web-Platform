@@ -126,6 +126,33 @@ function profileToAuthUser(profile: Profile): AuthUser {
   }
 }
 
+/**
+ * Build a minimal AuthUser from the JWT user_metadata when the profile
+ * table row is unavailable (RLS block, missing record, network error).
+ * This ensures the user can still access the app after a successful
+ * Supabase auth — we never want to show "Perfil no encontrado".
+ */
+function jwtToAuthUser(supabaseUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; created_at?: string }): AuthUser {
+  const meta = supabaseUser.user_metadata || {}
+  const role = (meta.role as UserRole) || "EXT_CLIENTE"
+  const portal = (meta.portal as PortalId) || "cliente"
+  return {
+    id: supabaseUser.id,
+    email: supabaseUser.email || "",
+    fullName: (meta.full_name as string) || (supabaseUser.email?.split("@")[0] ?? "Usuario"),
+    role,
+    portal,
+    department: undefined,
+    position: undefined,
+    avatarUrl: undefined,
+    status: "active",
+    kycStatus: "pending",
+    kycLevel: 0,
+    lastLoginAt: undefined,
+    createdAt: supabaseUser.created_at || new Date().toISOString(),
+  }
+}
+
 // ============================================================
 // Storage keys
 // ============================================================
@@ -215,6 +242,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isAuthenticated: true,
             isLoading: false,
           }))
+        } else if (session) {
+          // Profile missing but session is valid — gracefully degrade
+          setState((s) => ({
+            ...s,
+            user: jwtToAuthUser(session.user),
+            session,
+            profile: null,
+            isAuthenticated: true,
+            isLoading: false,
+          }))
         } else {
           setState((s) => ({ ...s, isLoading: false }))
         }
@@ -232,12 +269,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .eq("id", session.user.id)
               .single()
 
+            // Graceful degradation: if profile is missing (RLS, not yet
+            // created, etc.) build a minimal user from JWT metadata so
+            // the user is never left in an unauthenticated limbo.
+            const authUser = profile
+              ? profileToAuthUser(profile)
+              : jwtToAuthUser(session.user)
+
             setState((s) => ({
               ...s,
-              user: profile ? profileToAuthUser(profile) : null,
+              user: authUser,
               session,
-              profile,
-              isAuthenticated: !!profile,
+              profile: profile ?? null,
+              isAuthenticated: true,
             }))
           } else if (event === "SIGNED_OUT") {
             setState((s) => ({
@@ -366,48 +410,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.session && data.user) {
-        // Fetch profile
+        // Fetch profile — failure here must never block the user from
+        // accessing the app after a successful Supabase authentication.
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", data.user.id)
           .single()
 
+        // Graceful degradation: build from JWT metadata when profile row
+        // is unavailable (RLS policy not satisfied, row not yet created
+        // by a trigger, or network error on the profiles table).
+        const authUser = profile
+          ? profileToAuthUser(profile)
+          : jwtToAuthUser(data.user)
+
         if (profile) {
-          // Create session record
-          await supabase.from("sessions").insert({
+          // Create session record (best-effort, non-blocking)
+          supabase.from("sessions").insert({
             user_id: data.user.id,
             device_type: "web",
             portal: profile.portal,
             user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
-          })
+          }).then(() => {})
 
-          // Audit log
-          await supabase.from("audit_log").insert({
+          // Audit log (best-effort, non-blocking)
+          supabase.from("audit_log").insert({
             user_id: data.user.id,
             action: "auth.login",
             resource_type: "user",
             resource_id: data.user.id,
             portal: profile.portal,
             details: { method: "password", email },
-          })
-
-          setState((s) => ({
-            ...s,
-            user: profileToAuthUser(profile),
-            session: data.session,
-            profile,
-            isAuthenticated: true,
-            isLoading: false,
-            sessionExpiryWarning: false,
-          }))
-          resetInactivityTimer()
-          return { success: true }
+          }).then(() => {})
         }
+
+        setState((s) => ({
+          ...s,
+          user: authUser,
+          session: data.session,
+          profile: profile ?? null,
+          isAuthenticated: true,
+          isLoading: false,
+          sessionExpiryWarning: false,
+        }))
+        resetInactivityTimer()
+        return { success: true }
       }
 
-      setState((s) => ({ ...s, isLoading: false, error: "Perfil no encontrado" }))
-      return { success: false, error: "Perfil no encontrado" }
+      // data.session or data.user was null despite no error — should not
+      // happen in practice but handle it gracefully.
+      setState((s) => ({ ...s, isLoading: false }))
+      return { success: false, error: "Error al iniciar sesión. Inténtalo de nuevo." }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error de autenticación"
       setState((s) => ({ ...s, isLoading: false, error: msg }))
@@ -598,7 +652,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return { success: false, error: "Supabase no configurado" }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/auth/reset-password`,
     })
 
     if (error) return { success: false, error: error.message }
