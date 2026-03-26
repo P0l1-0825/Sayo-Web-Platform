@@ -21,6 +21,10 @@ export const portals: PortalConfig[] = [
       { label: "Admin Créditos", href: "/mesa-control/admin-creditos", icon: "CircleDollarSign" },
       { label: "Tarjetas", href: "/mesa-control/tarjetas", icon: "CreditCard" },
       { label: "Exportar", href: "/mesa-control/exportar", icon: "Import" },
+      { label: "KYC Admin", href: "/mesa-control/kyc", icon: "UserCheck" },
+      { label: "Cumplimiento", href: "/mesa-control/cumplimiento", icon: "ShieldCheck" },
+      { label: "Analytics", href: "/mesa-control/analytics", icon: "BarChart3" },
+      { label: "Soporte", href: "/mesa-control/soporte", icon: "Headphones" },
     ],
   },
   {
