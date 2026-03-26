@@ -4,7 +4,11 @@ import * as React from "react"
 import { getSupabase, isDemoMode, type Profile } from "./supabase"
 import { demoUsers } from "./portals"
 import type { PortalId, UserRole } from "./types"
-import type { Session, User } from "@supabase/supabase-js"
+import type { Session } from "@supabase/supabase-js"
+
+// ── Session timeout constants ──────────────────────────────────
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000       // 30 minutes
+const SESSION_WARNING_MS = 28 * 60 * 1000        // warn at 28 min (2 min before expiry)
 
 // ============================================================
 // Auth Types
@@ -34,6 +38,8 @@ export interface AuthState {
   isAuthenticated: boolean
   isDemoMode: boolean
   error: string | null
+  /** True for the 2 minutes before the inactivity timeout fires */
+  sessionExpiryWarning: boolean
 }
 
 export interface AuthActions {
@@ -138,7 +144,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: false,
     isDemoMode,
     error: null,
+    sessionExpiryWarning: false,
   })
+
+  // ── Inactivity session timeout refs ─────────────────────────
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const warningRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isAuthenticatedRef = React.useRef(false)
+
+  // Keep ref in sync with state so event listeners see current value
+  React.useEffect(() => {
+    isAuthenticatedRef.current = state.isAuthenticated
+  }, [state.isAuthenticated])
 
   // ----------------------------------------------------------
   // Initialize: check existing session
@@ -243,6 +260,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // ----------------------------------------------------------
+  // Inactivity session timeout
+  // ----------------------------------------------------------
+
+  const clearTimeouts = React.useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    if (warningRef.current) clearTimeout(warningRef.current)
+    timeoutRef.current = null
+    warningRef.current = null
+  }, [])
+
+  const resetInactivityTimer = React.useCallback(() => {
+    if (!isAuthenticatedRef.current) return
+
+    clearTimeouts()
+
+    // Warning fires 2 minutes before expiry
+    warningRef.current = setTimeout(() => {
+      setState((s) => ({ ...s, sessionExpiryWarning: true }))
+    }, SESSION_WARNING_MS)
+
+    // Logout fires at 30 minutes of inactivity
+    timeoutRef.current = setTimeout(() => {
+      // logout() is defined below — we call it indirectly via a ref to avoid
+      // a stale closure, but since this fires inside the component lifecycle
+      // we dispatch a custom event to trigger the logout action.
+      window.dispatchEvent(new CustomEvent("sayo:session-timeout"))
+    }, SESSION_TIMEOUT_MS)
+  }, [clearTimeouts])
+
+  // Listen for user activity to reset the inactivity timer
+  React.useEffect(() => {
+    const activityEvents = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"]
+
+    const handleActivity = () => {
+      if (isAuthenticatedRef.current) {
+        setState((s) => s.sessionExpiryWarning ? { ...s, sessionExpiryWarning: false } : s)
+        resetInactivityTimer()
+      }
+    }
+
+    activityEvents.forEach((evt) => window.addEventListener(evt, handleActivity, { passive: true }))
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, handleActivity))
+    }
+  }, [resetInactivityTimer])
+
+  // ----------------------------------------------------------
   // Actions
   // ----------------------------------------------------------
 
@@ -250,7 +315,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, isLoading: true, error: null }))
 
     if (isDemoMode) {
-      // Demo mode: find matching demo user by email
+      // SECURITY: In production, demo mode login is forbidden regardless of
+      // whether isDemoMode is true. If somehow NEXT_PUBLIC_DEMO_MODE slips
+      // through to a production deployment, this guard is the last line of defence.
+      if (process.env.NODE_ENV === "production") {
+        setState((s) => ({ ...s, isLoading: false, error: "Demo mode no disponible en produccion" }))
+        throw new Error("Demo mode is not permitted in production builds")
+      }
+
+      // Demo mode (development/staging only): find matching demo user by email
       const demoUser = demoUsers.find(
         (u) => u.email.toLowerCase() === email.toLowerCase()
       )
@@ -264,21 +337,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isLoading: false,
           isDemoMode: true,
         }))
+        resetInactivityTimer()
         return { success: true }
       }
-      // In demo mode, any email works — create client user
-      const user = createDemoUser("cliente")
-      user.email = email
-      user.fullName = email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-      localStorage.setItem(DEMO_USER_KEY, JSON.stringify(user))
-      setState((s) => ({
-        ...s,
-        user,
-        isAuthenticated: true,
-        isLoading: false,
-        isDemoMode: true,
-      }))
-      return { success: true }
+
+      // In demo mode (non-production only), unknown emails are rejected —
+      // the "any email works" fallback was a critical security hole.
+      setState((s) => ({ ...s, isLoading: false, error: "Usuario demo no encontrado" }))
+      return { success: false, error: "Usuario demo no encontrado" }
     }
 
     // Supabase mode
@@ -333,7 +399,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             profile,
             isAuthenticated: true,
             isLoading: false,
+            sessionExpiryWarning: false,
           }))
+          resetInactivityTimer()
           return { success: true }
         }
       }
@@ -410,7 +478,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const logout = async () => {
+  const logout = React.useCallback(async (reason: "manual" | "timeout" = "manual") => {
+    clearTimeouts()
+
     if (isDemoMode) {
       localStorage.removeItem(DEMO_USER_KEY)
       setState((s) => ({
@@ -419,25 +489,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session: null,
         profile: null,
         isAuthenticated: false,
+        sessionExpiryWarning: false,
       }))
       return
     }
 
     const supabase = getSupabase()
-    if (supabase && state.user) {
+    // Capture current user before clearing state
+    const currentUserId = state.user?.id
+    if (supabase && currentUserId) {
       // End active sessions
       await supabase
         .from("sessions")
-        .update({ is_active: false, ended_at: new Date().toISOString(), end_reason: "logout" })
-        .eq("user_id", state.user.id)
+        .update({
+          is_active: false,
+          ended_at: new Date().toISOString(),
+          end_reason: reason === "timeout" ? "expired" : "logout",
+        })
+        .eq("user_id", currentUserId)
         .eq("is_active", true)
 
       // Audit log
       await supabase.from("audit_log").insert({
-        user_id: state.user.id,
-        action: "auth.logout",
+        user_id: currentUserId,
+        action: reason === "timeout" ? "auth.session_timeout" : "auth.logout",
         resource_type: "user",
-        resource_id: state.user.id,
+        resource_id: currentUserId,
+        severity: reason === "timeout" ? "warning" : "info",
       })
 
       await supabase.auth.signOut()
@@ -449,10 +527,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session: null,
       profile: null,
       isAuthenticated: false,
+      sessionExpiryWarning: false,
     }))
-  }
+  }, [clearTimeouts, isDemoMode, state.user])
+
+  // Listen for the inactivity timeout event dispatched by the timer
+  React.useEffect(() => {
+    const handleSessionTimeout = () => {
+      logout("timeout")
+    }
+    window.addEventListener("sayo:session-timeout", handleSessionTimeout)
+    return () => window.removeEventListener("sayo:session-timeout", handleSessionTimeout)
+  }, [logout])
 
   const demoLogin = (portalId: PortalId) => {
+    // SECURITY: demoLogin is blocked in production environments.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Demo login is not permitted in production builds")
+    }
     const user = createDemoUser(portalId)
     localStorage.setItem(DEMO_USER_KEY, JSON.stringify(user))
     setState((s) => ({
@@ -461,6 +553,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: true,
       isDemoMode: true,
     }))
+    resetInactivityTimer()
   }
 
   const updateProfile = async (data: Partial<Profile>): Promise<{ success: boolean; error?: string }> => {

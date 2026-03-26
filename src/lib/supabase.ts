@@ -17,11 +17,14 @@ export const isSupabaseConfigured =
   supabaseUrl.startsWith("https://")
 
 /**
- * Whether demo mode is explicitly enabled via env var
- * OR Supabase is not configured (auto-fallback)
+ * Whether demo mode is explicitly enabled via env var.
+ *
+ * SECURITY: Demo mode must be explicitly opted-in by setting
+ * NEXT_PUBLIC_DEMO_MODE=true. It NEVER activates automatically
+ * because Supabase is unconfigured — a missing configuration in
+ * production is an error, not a fallback.
  */
-export const isDemoMode =
-  process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !isSupabaseConfigured
+export const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
 
 let supabaseInstance: SupabaseClient | null = null
 

@@ -56,10 +56,13 @@ const demoCards: Card[] = [
   },
 ]
 
+// NOTE: Full PANs and CVVs are never stored in the frontend.
+// In demo mode, masked values are shown; real sensitive data is only
+// returned by the backend through an authenticated, time-limited endpoint.
 const demoSensitiveData: Record<string, CardSensitiveData> = {
-  "card-001": { pan: "4111 1111 1111 4321", cvv: "123", expiry_month: "12", expiry_year: "27" },
-  "card-002": { pan: "5555 5555 5555 8876", cvv: "456", expiry_month: "06", expiry_year: "28" },
-  "card-003": { pan: "4000 0000 0000 2255", cvv: "789", expiry_month: "09", expiry_year: "29" },
+  "card-001": { pan: "**** **** **** 4321", cvv: "***", expiry_month: "12", expiry_year: "27" },
+  "card-002": { pan: "**** **** **** 8876", cvv: "***", expiry_month: "06", expiry_year: "28" },
+  "card-003": { pan: "**** **** **** 2255", cvv: "***", expiry_month: "09", expiry_year: "29" },
 }
 
 const demoTokens: Record<string, CardToken[]> = {
@@ -213,10 +216,8 @@ export const cardService = {
 
   async refreshCvv(cardId: string): Promise<CardSensitiveData> {
     if (isDemoMode) {
-      const newCvv = String(Math.floor(100 + Math.random() * 900))
-      const existing = demoSensitiveData[cardId]
-      if (existing) existing.cvv = newCvv
-      return demoSensitiveData[cardId] ?? { pan: "", cvv: newCvv, expiry_month: "12", expiry_year: "28" }
+      // CVVs are never revealed in demo mode — backend validation is required.
+      return demoSensitiveData[cardId] ?? { pan: "**** **** **** ****", cvv: "***", expiry_month: "12", expiry_year: "28" }
     }
     return api.post<CardSensitiveData>(`${CARD_API}/cvv/refresh`, { card_id: cardId })
   },
