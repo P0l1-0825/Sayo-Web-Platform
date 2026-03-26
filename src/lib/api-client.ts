@@ -2,8 +2,8 @@
 // SAYO — API Client
 // Wraps fetch() to call the backend gateway (sayo-platform).
 // When API is available, delegates to backend (which handles demo mode).
-// When API is NOT available (no NEXT_PUBLIC_API_URL), services must
-// use their own isDemoMode fallback with inline demo data.
+// When API is NOT available (no NEXT_PUBLIC_API_URL), services fall back
+// to their inline demo data — no broken network requests are made.
 // ============================================================
 
 import { isDemoMode as _isDemoMode } from "./supabase"
@@ -17,10 +17,14 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
 export const isApiConfigured = API_BASE.length > 0
 
 /**
- * Re-export isDemoMode for services that need to check before calling API.
- * When true, services should return demo data without making network calls.
+ * Whether services should use demo data.
+ * True when NEXT_PUBLIC_DEMO_MODE=true OR when no API URL is configured.
+ * This ensures the app works offline / in static deployments without
+ * making broken requests to relative /api/v1/... paths.
  */
-export { _isDemoMode as isDemoMode }
+export const isDemoMode = _isDemoMode || !isApiConfigured
+
+export { _isDemoMode as isExplicitDemoMode }
 
 function getStoredToken(): string | null {
   if (typeof window === "undefined") return null

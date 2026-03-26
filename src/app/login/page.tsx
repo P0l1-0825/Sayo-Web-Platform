@@ -71,7 +71,12 @@ export default function LoginPage() {
     if (loggingOut) return
     const params = new URLSearchParams(window.location.search)
     if (isAuthenticated && user && params.get("logout") !== "true") {
-      router.push(`/${user.portal}`)
+      // L6_SUPERADMIN goes to portal selector to choose which portal to enter
+      if (user.role === "L6_SUPERADMIN") {
+        router.push("/portals")
+      } else {
+        router.push(`/${user.portal}`)
+      }
     }
   }, [isAuthenticated, user, router, loggingOut])
 

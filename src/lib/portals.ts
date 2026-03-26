@@ -238,11 +238,14 @@ export function getPortal(id: PortalId): PortalConfig | undefined {
 }
 
 export function getPortalsByRole(role: string): PortalConfig[] {
+  // L6_SUPERADMIN has access to all portals
+  if (role === "L6_SUPERADMIN") return portals;
   return portals.filter((p) => p.role === role);
 }
 
 // Demo users for login selector
 export const demoUsers = [
+  { name: "Admin General", role: "L6_SUPERADMIN" as const, portal: "mesa-control" as const, email: "admin@sayo.mx" },
   { name: "Carlos Mendoza", role: "L2_OPERADOR" as const, portal: "mesa-control" as const, email: "carlos.mendoza@sayo.mx" },
   { name: "Ana García", role: "L3_PLD" as const, portal: "cumplimiento" as const, email: "ana.garcia@sayo.mx" },
   { name: "Roberto López", role: "L2_GESTOR" as const, portal: "cobranza" as const, email: "roberto.lopez@sayo.mx" },
