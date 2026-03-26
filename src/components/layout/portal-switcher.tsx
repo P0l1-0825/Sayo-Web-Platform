@@ -6,6 +6,7 @@ import type { PortalConfig } from "@/lib/types"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -28,28 +29,34 @@ export function PortalSwitcher({ currentPortal }: PortalSwitcherProps) {
         <ChevronDown className="size-3 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>Cambiar Portal</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Cambiar Portal</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={() => router.push("/login")}
-        >
-          <Home className="size-3.5 text-sayo-cafe" />
-          <span className="text-xs font-semibold">Selector de Portales</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {internalPortals.map((portal) => (
+        <DropdownMenuGroup>
           <DropdownMenuItem
-            key={portal.id}
             className="flex items-center gap-2 cursor-pointer"
-            onClick={() => router.push(portal.navItems[0]?.href || `/${portal.id}`)}
+            onClick={() => router.push("/login")}
           >
-            <span className={`text-xs font-semibold ${portal.color}`}>
-              {portal.shortName}
-            </span>
-            <span className="text-xs text-muted-foreground">{portal.description.slice(0, 40)}...</span>
+            <Home className="size-3.5 text-sayo-cafe" />
+            <span className="text-xs font-semibold">Selector de Portales</span>
           </DropdownMenuItem>
-        ))}
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          {internalPortals.map((portal) => (
+            <DropdownMenuItem
+              key={portal.id}
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => router.push(portal.navItems[0]?.href || `/${portal.id}`)}
+            >
+              <span className={`text-xs font-semibold ${portal.color}`}>
+                {portal.shortName}
+              </span>
+              <span className="text-xs text-muted-foreground">{portal.description.slice(0, 40)}...</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

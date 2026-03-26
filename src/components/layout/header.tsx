@@ -8,6 +8,7 @@ import { PortalSwitcher } from "./portal-switcher"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -117,26 +118,32 @@ export function Header({ portal }: HeaderProps) {
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <div>
-                <p className="text-sm font-medium">{user?.fullName || "Usuario"}</p>
-                <p className="text-[10px] text-muted-foreground">{user?.email}</p>
-              </div>
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>
+                <div>
+                  <p className="text-sm font-medium">{user?.fullName || "Usuario"}</p>
+                  <p className="text-[10px] text-muted-foreground">{user?.email}</p>
+                </div>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push("/cliente/perfil")}>
-              <User className="size-3.5" />
-              <span className="text-xs">Mi Perfil</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push("/admin")}>
-              <Settings className="size-3.5" />
-              <span className="text-xs">Configuración</span>
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push("/cliente/perfil")}>
+                <User className="size-3.5" />
+                <span className="text-xs">Mi Perfil</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => router.push("/admin")}>
+                <Settings className="size-3.5" />
+                <span className="text-xs">Configuración</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer gap-2 text-red-600 focus:text-red-600" onClick={handleLogout}>
-              <LogOut className="size-3.5" />
-              <span className="text-xs">Cerrar Sesión</span>
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem className="cursor-pointer gap-2 text-red-600 focus:text-red-600" onClick={handleLogout}>
+                <LogOut className="size-3.5" />
+                <span className="text-xs">Cerrar Sesión</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
