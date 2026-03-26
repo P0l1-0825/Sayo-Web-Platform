@@ -705,6 +705,77 @@ export interface NotificationTemplate {
 }
 
 // ============================================================
+// TARJETAS (Pomelo)
+// ============================================================
+
+export type CardStatus = "active" | "blocked" | "pending_activation" | "expired" | "cancelled";
+export type CardType = "virtual" | "physical";
+export type CardBrand = "VISA" | "MASTERCARD" | "AMEX";
+
+export interface Card {
+  id: string;
+  user_id: string;
+  type: CardType;
+  brand: CardBrand;
+  status: CardStatus;
+  card_number_masked: string;
+  holder_name: string;
+  expiry_date: string;
+  balance: number;
+  credit_limit: number;
+  is_virtual: boolean;
+  created_at: string;
+}
+
+export interface CardSensitiveData {
+  pan: string;
+  cvv: string;
+  expiry_month: string;
+  expiry_year: string;
+}
+
+export interface CardToken {
+  id: string;
+  provider: "apple_pay" | "google_pay" | "samsung_pay";
+  status: "active" | "suspended" | "deleted";
+  last_four: string;
+}
+
+export interface CardShipment {
+  status: "pending" | "in_transit" | "delivered" | "failed";
+  carrier: string;
+  tracking_number: string;
+  estimated_delivery: string;
+}
+
+export interface CardBlock {
+  id: string;
+  card_id: string;
+  block_type: "country" | "merchant" | "mcc" | "amount";
+  value: string;
+  created_at: string;
+}
+
+export interface Chargeback {
+  id: string;
+  card_id: string;
+  transaction_id: string;
+  reason: string;
+  amount: number;
+  status: "pending" | "in_review" | "approved" | "rejected";
+  created_at: string;
+}
+
+export interface TravelNotice {
+  id: string;
+  user_id: string;
+  countries: string[];
+  start_date: string;
+  end_date: string;
+  status: "active" | "expired" | "cancelled";
+}
+
+// ============================================================
 // MESA DE CONTROL EXPANDIDO
 // ============================================================
 

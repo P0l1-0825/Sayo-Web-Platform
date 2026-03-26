@@ -19,6 +19,7 @@ export const portals: PortalConfig[] = [
       { label: "Cierres", href: "/mesa-control/cierres", icon: "CalendarClock" },
       { label: "Sustitución", href: "/mesa-control/sustitucion", icon: "RefreshCw" },
       { label: "Admin Créditos", href: "/mesa-control/admin-creditos", icon: "CircleDollarSign" },
+      { label: "Tarjetas", href: "/mesa-control/tarjetas", icon: "CreditCard" },
       { label: "Exportar", href: "/mesa-control/exportar", icon: "Import" },
     ],
   },
@@ -165,6 +166,7 @@ export const portals: PortalConfig[] = [
     description: "Banca web: saldo, transferencias, pagos y estados de cuenta",
     navItems: [
       { label: "Dashboard", href: "/cliente", icon: "LayoutDashboard" },
+      { label: "Tarjetas", href: "/cliente/tarjetas", icon: "CreditCard" },
       { label: "Transferencias", href: "/cliente/transferencias", icon: "ArrowLeftRight" },
       { label: "Pagos", href: "/cliente/pagos", icon: "CreditCard" },
       { label: "Estados de Cuenta", href: "/cliente/estados-cuenta", icon: "FileText" },
