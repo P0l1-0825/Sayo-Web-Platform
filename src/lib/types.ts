@@ -31,6 +31,7 @@ export type UserRole =
   | "L4_SEGURIDAD"
   | "L4_ADMIN"
   | "L5_EJECUTIVO"
+  | "L6_SUPERADMIN"
   | "EXT_CLIENTE";
 
 export interface NavItem {
