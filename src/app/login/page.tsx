@@ -191,52 +191,7 @@ export default function LoginPage() {
             </Button>
           </div>
 
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-sayo-cream px-3 text-muted-foreground">o accede como demo</span>
-            </div>
-          </div>
-
-          {/* Portal Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {portals.map((portal) => {
-              const Icon = iconMap[portal.icon] || Monitor
-              const demoUser = demoUsers.find((u) => u.portal === portal.id)
-
-              return (
-                <Card
-                  key={portal.id}
-                  className="cursor-pointer hover:shadow-md hover:border-sayo-cafe/30 transition-all duration-200 group"
-                  onClick={() => handlePortalSelect(portal.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted ${portal.color} group-hover:bg-sayo-cafe group-hover:text-white transition-colors`}>
-                        <Icon className="size-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-foreground group-hover:text-sayo-cafe transition-colors">
-                          {portal.name}
-                        </h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
-                          {portal.description}
-                        </p>
-                        {demoUser && (
-                          <p className="text-[10px] text-muted-foreground/70 mt-1.5">
-                            {demoUser.name} — {portal.role.replace("_", " ")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
+          {/* Production: only credential login — no demo access */}
 
           {/* Footer */}
           <div className="text-center space-y-1">
