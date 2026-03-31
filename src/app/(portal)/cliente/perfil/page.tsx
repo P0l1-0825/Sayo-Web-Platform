@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { User, Mail, Phone, MapPin, Shield, FileText, Bell, Key, Smartphone, ChevronRight, Check, X, Eye, EyeOff, Pencil, Trash2, Upload, Clock } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/lib/auth-context"
 
 interface ProfileData {
   name: string
@@ -44,15 +45,16 @@ interface Document {
   uploadDate: string
 }
 
-const initialProfile: ProfileData = {
-  name: "Juan Pérez García",
-  email: "juan.perez@gmail.com",
-  phone: "+52 55 1234 5678",
-  address: "Av. Reforma 222, Col. Juárez, CDMX, 06600",
-  curp: "PEGJ900515HDFRRC09",
-  rfc: "PEGJ900515XXX",
-  accountLevel: "Nivel 4",
-  memberSince: "Marzo 2023",
+// Default profile — will be overridden by real auth data
+const defaultProfile: ProfileData = {
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+  curp: "",
+  rfc: "",
+  accountLevel: "Nivel 1",
+  memberSince: "",
 }
 
 const initialDevices: Device[] = [
@@ -77,7 +79,26 @@ const notifSettings = [
 ]
 
 export default function PerfilPage() {
-  const [profile, setProfile] = React.useState<ProfileData>(initialProfile)
+  const { user, profile: authProfile } = useAuth()
+
+  // Build profile from real auth data
+  const realProfile: ProfileData = React.useMemo(() => ({
+    name: user?.fullName || authProfile?.full_name || defaultProfile.name,
+    email: user?.email || authProfile?.email || defaultProfile.email,
+    phone: (authProfile as Record<string, unknown>)?.phone as string || defaultProfile.phone,
+    address: defaultProfile.address,
+    curp: (authProfile as Record<string, unknown>)?.curp as string || defaultProfile.curp,
+    rfc: (authProfile as Record<string, unknown>)?.rfc as string || defaultProfile.rfc,
+    accountLevel: `Nivel ${user?.kycLevel || 1}`,
+    memberSince: user?.createdAt ? new Date(user.createdAt).toLocaleDateString("es-MX", { month: "long", year: "numeric" }) : defaultProfile.memberSince,
+  }), [user, authProfile])
+
+  const [profile, setProfile] = React.useState<ProfileData>(realProfile)
+
+  // Update profile when auth data loads
+  React.useEffect(() => {
+    if (user?.fullName) setProfile(realProfile)
+  }, [user, realProfile])
   const [devices, setDevices] = React.useState<Device[]>(initialDevices)
   const [documents] = React.useState<Document[]>(initialDocuments)
   const [editOpen, setEditOpen] = React.useState(false)
