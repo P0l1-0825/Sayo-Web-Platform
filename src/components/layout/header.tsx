@@ -1,10 +1,13 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Bell, ChevronRight, Search, LogOut, User, Settings } from "lucide-react"
+import { ChevronRight, Search, LogOut, User, Settings } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { PortalSwitcher } from "./portal-switcher"
+import { SearchDialog } from "./search-dialog"
+import { NotificationsDropdown } from "./notifications-dropdown"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +30,19 @@ export function Header({ portal }: HeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout, isDemoMode } = useAuth()
+  const [searchOpen, setSearchOpen] = React.useState(false)
+
+  // Cmd+K / Ctrl+K shortcut
+  React.useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setSearchOpen((open) => !open)
+      }
+    }
+    document.addEventListener("keydown", down)
+    return () => document.removeEventListener("keydown", down)
+  }, [])
 
   // Generate breadcrumbs from pathname
   const segments = pathname.split("/").filter(Boolean)
@@ -87,15 +103,20 @@ export function Header({ portal }: HeaderProps) {
         )}
 
         {/* Search */}
-        <button className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-          <Search className="size-4" />
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+        >
+          <Search className="size-3.5" />
+          <span className="hidden sm:inline text-xs">Buscar...</span>
+          <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
+            ⌘K
+          </kbd>
         </button>
+        <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
 
         {/* Notifications */}
-        <button className="relative flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-          <Bell className="size-4" />
-          <span className="absolute right-1.5 top-1.5 flex size-2 rounded-full bg-sayo-red" />
-        </button>
+        <NotificationsDropdown />
 
         {/* Portal Switcher */}
         <PortalSwitcher currentPortal={portal} />
