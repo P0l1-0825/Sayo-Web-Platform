@@ -88,13 +88,11 @@ export function NotificationsDropdown() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="relative flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-          <Bell className="size-4" />
-          {unreadCount > 0 && (
-            <span className="absolute right-1.5 top-1.5 flex size-2 rounded-full bg-sayo-red" />
-          )}
-        </button>
+      <DropdownMenuTrigger className="relative flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors outline-none">
+        <Bell className="size-4" />
+        {unreadCount > 0 && (
+          <span className="absolute right-1.5 top-1.5 flex size-2 rounded-full bg-sayo-red" />
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="flex items-center justify-between">
