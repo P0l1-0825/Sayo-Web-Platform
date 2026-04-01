@@ -108,7 +108,14 @@ export default function PerfilPage() {
   const [passwordOpen, setPasswordOpen] = React.useState(false)
   const [passwordForm, setPasswordForm] = React.useState({ current: "", newPass: "", confirm: "" })
   const [showPassword, setShowPassword] = React.useState(false)
-  const [twoFaEnabled, setTwoFaEnabled] = React.useState(true)
+  const [twoFaEnabled, setTwoFaEnabled] = React.useState(false)
+  const [mfaOpen, setMfaOpen] = React.useState(false)
+  const [mfaStep, setMfaStep] = React.useState<"idle" | "loading" | "qr" | "verify" | "done">("idle")
+  const [mfaQrCode, setMfaQrCode] = React.useState("")
+  const [mfaSecret, setMfaSecret] = React.useState("")
+  const [mfaFactorId, setMfaFactorId] = React.useState("")
+  const [mfaCode, setMfaCode] = React.useState("")
+  const [mfaError, setMfaError] = React.useState("")
   const [notifOpen, setNotifOpen] = React.useState(false)
   const [notifications, setNotifications] = React.useState<Record<string, boolean>>({
     push_transfers: true,
@@ -154,10 +161,87 @@ export default function PerfilPage() {
   }
 
   const handleToggle2FA = () => {
-    setTwoFaEnabled(!twoFaEnabled)
-    toast.success(twoFaEnabled ? "2FA desactivado" : "2FA activado", {
-      description: twoFaEnabled ? "Verificación en dos pasos desactivada" : "Verificación en dos pasos activada",
+    if (twoFaEnabled) {
+      // Unenroll — would need factorId. For now just toggle.
+      setTwoFaEnabled(false)
+      toast.success("2FA desactivado")
+      return
+    }
+    // Start MFA enrollment
+    setMfaOpen(true)
+    setMfaStep("loading")
+    setMfaError("")
+    setMfaCode("")
+
+    const token = (() => {
+      try {
+        const raw = localStorage.getItem("sayo-auth")
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        return parsed?.access_token ?? null
+      } catch { return null }
+    })()
+
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/auth/mfa/enroll`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) {
+          setMfaQrCode(res.data.qrCode)
+          setMfaSecret(res.data.secret)
+          setMfaFactorId(res.data.factorId)
+          setMfaStep("qr")
+        } else {
+          setMfaError(res.error?.message || "Error al enrollar MFA")
+          setMfaStep("idle")
+        }
+      })
+      .catch(() => {
+        setMfaError("Error de conexión")
+        setMfaStep("idle")
+      })
+  }
+
+  const handleVerifyMfa = () => {
+    if (mfaCode.length !== 6) {
+      setMfaError("Ingresa el código de 6 dígitos")
+      return
+    }
+    setMfaStep("loading")
+    setMfaError("")
+
+    const token = (() => {
+      try {
+        const raw = localStorage.getItem("sayo-auth")
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        return parsed?.access_token ?? null
+      } catch { return null }
+    })()
+
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/auth/mfa/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ factorId: mfaFactorId, code: mfaCode }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) {
+          setMfaStep("done")
+          setTwoFaEnabled(true)
+          toast.success("2FA activado", { description: "Verificación en dos pasos activada exitosamente" })
+          setTimeout(() => setMfaOpen(false), 1500)
+        } else {
+          setMfaError(res.error?.message || "Código incorrecto")
+          setMfaStep("qr")
+        }
+      })
+      .catch(() => {
+        setMfaError("Error de conexión")
+        setMfaStep("qr")
+      })
   }
 
   const handleToggleNotification = (key: string) => {
@@ -493,6 +577,83 @@ export default function PerfilPage() {
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cerrar</DialogClose>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MFA Enrollment Dialog */}
+      <Dialog open={mfaOpen} onOpenChange={setMfaOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Activar Autenticación 2FA</DialogTitle>
+            <DialogDescription>
+              Escanea el código QR con Google Authenticator o cualquier app TOTP
+            </DialogDescription>
+          </DialogHeader>
+
+          {mfaStep === "loading" && (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sayo-cafe" />
+            </div>
+          )}
+
+          {mfaStep === "qr" && (
+            <div className="space-y-4">
+              {/* QR Code */}
+              <div className="flex justify-center">
+                {mfaQrCode ? (
+                  <img src={mfaQrCode} alt="QR Code MFA" className="w-48 h-48 rounded-lg border" />
+                ) : (
+                  <div className="w-48 h-48 bg-muted rounded-lg flex items-center justify-center text-xs text-muted-foreground">
+                    QR no disponible
+                  </div>
+                )}
+              </div>
+
+              {/* Secret key for manual entry */}
+              {mfaSecret && (
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-1">O ingresa manualmente:</p>
+                  <code className="text-xs bg-muted px-2 py-1 rounded font-mono select-all">{mfaSecret}</code>
+                </div>
+              )}
+
+              {/* TOTP Code Input */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Código de verificación</label>
+                <Input
+                  placeholder="000000"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                  maxLength={6}
+                />
+              </div>
+
+              {mfaError && (
+                <p className="text-sm text-red-600 text-center">{mfaError}</p>
+              )}
+            </div>
+          )}
+
+          {mfaStep === "done" && (
+            <div className="flex flex-col items-center py-6 gap-3">
+              <div className="size-12 rounded-full bg-green-100 flex items-center justify-center">
+                <Check className="size-6 text-green-600" />
+              </div>
+              <p className="text-sm font-medium text-green-700">2FA activado exitosamente</p>
+            </div>
+          )}
+
+          {mfaStep !== "done" && (
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
+              {mfaStep === "qr" && (
+                <Button onClick={handleVerifyMfa} disabled={mfaCode.length !== 6}>
+                  Verificar y Activar
+                </Button>
+              )}
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
