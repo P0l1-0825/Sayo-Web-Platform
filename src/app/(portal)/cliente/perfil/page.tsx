@@ -82,16 +82,18 @@ export default function PerfilPage() {
   const { user, profile: authProfile } = useAuth()
 
   // Build profile from real auth data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const p = authProfile as any
   const realProfile: ProfileData = React.useMemo(() => ({
-    name: user?.fullName || authProfile?.full_name || defaultProfile.name,
-    email: user?.email || authProfile?.email || defaultProfile.email,
-    phone: (authProfile as Record<string, unknown>)?.phone as string || defaultProfile.phone,
-    address: defaultProfile.address,
-    curp: (authProfile as Record<string, unknown>)?.curp as string || defaultProfile.curp,
-    rfc: (authProfile as Record<string, unknown>)?.rfc as string || defaultProfile.rfc,
+    name: user?.fullName || p?.full_name || defaultProfile.name,
+    email: user?.email || p?.email || defaultProfile.email,
+    phone: p?.phone || defaultProfile.phone,
+    address: p?.address || defaultProfile.address,
+    curp: p?.curp || defaultProfile.curp,
+    rfc: p?.rfc || defaultProfile.rfc,
     accountLevel: `Nivel ${user?.kycLevel || 1}`,
     memberSince: user?.createdAt ? new Date(user.createdAt).toLocaleDateString("es-MX", { month: "long", year: "numeric" }) : defaultProfile.memberSince,
-  }), [user, authProfile])
+  }), [user, p])
 
   const [profile, setProfile] = React.useState<ProfileData>(realProfile)
 
@@ -102,7 +104,7 @@ export default function PerfilPage() {
   const [devices, setDevices] = React.useState<Device[]>(initialDevices)
   const [documents] = React.useState<Document[]>(initialDocuments)
   const [editOpen, setEditOpen] = React.useState(false)
-  const [editForm, setEditForm] = React.useState<ProfileData>(initialProfile)
+  const [editForm, setEditForm] = React.useState<ProfileData>(defaultProfile)
   const [passwordOpen, setPasswordOpen] = React.useState(false)
   const [passwordForm, setPasswordForm] = React.useState({ current: "", newPass: "", confirm: "" })
   const [showPassword, setShowPassword] = React.useState(false)
