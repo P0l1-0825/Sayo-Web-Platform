@@ -182,8 +182,8 @@ export const cardService = {
       return newCard
     }
     return api.post<Card>(CARD_API, {
-      card_type: type.toUpperCase(),
-      name_on_card: nameOnCard || undefined,
+      type,
+      cardholder_name: nameOnCard || undefined,
     })
   },
 
@@ -233,7 +233,7 @@ export const cardService = {
         }
       )
     }
-    return api.get<CardSensitiveData>(`${CARD_API}/sensitive/${cardId}`)
+    return api.get<CardSensitiveData>(`${CARD_API}/${cardId}/sensitive`)
   },
 
   async getTokens(cardId: string): Promise<CardToken[]> {
