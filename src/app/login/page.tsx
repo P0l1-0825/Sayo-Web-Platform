@@ -71,21 +71,20 @@ export default function LoginPage() {
 
   const [mode, setMode] = React.useState<LoginMode>("credentials")
 
-  // Credentials form
-  const [email, setEmail] = React.useState("")
-  const [password, setPassword] = React.useState("")
+  // Use refs for input values to prevent re-render on every keystroke
+  // and avoid focus loss from Supabase onAuthStateChange re-renders
+  const emailRef = React.useRef("")
+  const passwordRef = React.useRef("")
+  const fullNameRef = React.useRef("")
+  const phoneRef = React.useRef("")
+  const confirmPasswordRef = React.useRef("")
+  const forgotEmailRef = React.useRef("")
+
+  // Only use state for UI toggles (these don't cause input focus loss)
   const [showPassword, setShowPassword] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
-
-  // Register form
-  const [fullName, setFullName] = React.useState("")
-  const [phone, setPhone] = React.useState("")
-  const [confirmPassword, setConfirmPassword] = React.useState("")
   const [showRegPassword, setShowRegPassword] = React.useState(false)
   const [successOpen, setSuccessOpen] = React.useState(false)
-
-  // Forgot password form
-  const [forgotEmail, setForgotEmail] = React.useState("")
   const [forgotSent, setForgotSent] = React.useState(false)
 
   // Logout handling
@@ -127,14 +126,14 @@ export default function LoginPage() {
   // ── Login ────────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) {
+    if (!emailRef.current || !password) {
       toast.error("Completa todos los campos")
       return
     }
     setLoading(true)
     clearError()
 
-    const result = await login(email, password)
+    const result = await login(emailRef.current, passwordRef.current)
 
     if (result.success) {
       toast.success("Inicio de sesión exitoso")
@@ -148,22 +147,22 @@ export default function LoginPage() {
   // ── Register ─────────────────────────────────────────────────
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password || !fullName) {
+    if (!emailRef.current || !password || !fullName) {
       toast.error("Completa todos los campos requeridos")
       return
     }
-    if (password.length < 8) {
+    if (passwordRef.current.length < 8) {
       toast.error("La contraseña debe tener al menos 8 caracteres")
       return
     }
-    if (password !== confirmPassword) {
+    if (passwordRef.current !== confirmPasswordRef.current) {
       toast.error("Las contraseñas no coinciden")
       return
     }
     setLoading(true)
     clearError()
 
-    const result = await register({ email, password, fullName, phone })
+    const result = await register({ email: emailRef.current, password: passwordRef.current, fullName: fullNameRef.current, phone: phoneRef.current })
 
     if (result.success) {
       setSuccessOpen(true)
@@ -182,7 +181,7 @@ export default function LoginPage() {
     }
     setLoading(true)
 
-    const result = await resetPassword(forgotEmail)
+    const result = await resetPassword(forgotEmailRef.current)
 
     if (result.success) {
       setForgotSent(true)
@@ -227,8 +226,8 @@ export default function LoginPage() {
                     id="email"
                     type="email"
                     placeholder="tu@correo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    defaultValue=""
+                    onChange={(e) => { emailRef.current = e.target.value }}
                     className="pl-10 h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                     required
                     autoComplete="email"
@@ -264,8 +263,8 @@ export default function LoginPage() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    defaultValue=""
+                    onChange={(e) => { passwordRef.current = e.target.value }}
                     className="pl-10 pr-10 h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                     required
                     autoComplete="current-password"
@@ -364,8 +363,8 @@ export default function LoginPage() {
                         id="forgot-email"
                         type="email"
                         placeholder="tu@correo.com"
-                        value={forgotEmail}
-                        onChange={(e) => setForgotEmail(e.target.value)}
+                        defaultValue=""
+                        onChange={(e) => { forgotEmailRef.current = e.target.value }}
                         className="pl-10 h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                         required
                         autoComplete="email"
@@ -433,8 +432,8 @@ export default function LoginPage() {
               <Input
                 id="reg-name"
                 placeholder="Juan Pérez"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                defaultValue=""
+                onChange={(e) => { fullNameRef.current = e.target.value }}
                 className="h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                 required
                 autoComplete="name"
@@ -455,8 +454,8 @@ export default function LoginPage() {
                   id="reg-email"
                   type="email"
                   placeholder="tu@correo.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  defaultValue=""
+                  onChange={(e) => { emailRef.current = e.target.value }}
                   className="pl-10 h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                   required
                   autoComplete="email"
@@ -473,8 +472,8 @@ export default function LoginPage() {
                 id="reg-phone"
                 type="tel"
                 placeholder="+52 55 1234 5678"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                defaultValue=""
+                onChange={(e) => { phoneRef.current = e.target.value }}
                 className="h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                 autoComplete="tel"
               />
@@ -494,8 +493,8 @@ export default function LoginPage() {
                   id="reg-password"
                   type={showRegPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  defaultValue=""
+                  onChange={(e) => { passwordRef.current = e.target.value }}
                   className="pl-10 pr-10 h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                   minLength={8}
                   required
@@ -521,13 +520,13 @@ export default function LoginPage() {
                 id="reg-confirm"
                 type="password"
                 placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                defaultValue=""
+                onChange={(e) => { confirmPasswordRef.current = e.target.value }}
                 className="h-11 border-[#E1DBD6] focus-visible:ring-[#472913]/30 bg-white"
                 required
                 autoComplete="new-password"
               />
-              {confirmPassword.length > 0 && password !== confirmPassword && (
+              {confirmPassword.length > 0 && passwordRef.current !== confirmPasswordRef.current && (
                 <p className="text-[11px] text-red-500">Las contraseñas no coinciden</p>
               )}
             </div>
