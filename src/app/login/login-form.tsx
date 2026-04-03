@@ -85,15 +85,17 @@ export const LoginForm = React.memo(function LoginForm({ onLogin }: LoginFormPro
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
+                  <input
                     id="login-email"
                     type="email"
                     placeholder="tu@correo.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-11"
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 pl-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     required
-                    autoComplete="email"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
                     autoFocus
                   />
                 </div>
@@ -115,15 +117,17 @@ export const LoginForm = React.memo(function LoginForm({ onLogin }: LoginFormPro
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
+                  <input
                     id="login-password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-11"
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 pl-10 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     required
-                    autoComplete="current-password"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
                   />
                   <button
                     type="button"
