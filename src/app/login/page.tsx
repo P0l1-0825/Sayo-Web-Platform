@@ -23,6 +23,44 @@ import { toast } from "sonner"
 
 type LoginMode = "credentials" | "register" | "forgot"
 
+// ── Shared components (defined OUTSIDE LoginPage to prevent remount on re-render) ──
+
+function Logo() {
+  return (
+    <div className="text-center space-y-3 mb-8">
+      <div className="flex size-16 items-center justify-center rounded-2xl text-white font-bold text-3xl shadow-lg mx-auto select-none bg-sayo-gradient">
+        S
+      </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">SAYO</h1>
+        <p className="text-sm text-muted-foreground">Plataforma Financiera Digital</p>
+      </div>
+    </div>
+  )
+}
+
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-sm">
+        {children}
+        <p className="text-center text-[11px] text-muted-foreground mt-6">
+          SOLVENDOM SOFOM E.N.R. | Regulado por CNBV
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function ErrorBanner({ msg }: { msg: string }) {
+  return (
+    <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100">
+      <AlertCircle className="size-4 text-red-500 mt-0.5 shrink-0" />
+      <p className="text-xs text-red-600 leading-relaxed">{msg}</p>
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const {
@@ -155,43 +193,7 @@ export default function LoginPage() {
     setLoading(false)
   }
 
-  // ── Shared logo/header component ──────────────────────────────
-  const Logo = () => (
-    <div className="text-center space-y-3 mb-8">
-      <div
-        className="flex size-16 items-center justify-center rounded-2xl text-white font-bold text-3xl shadow-lg mx-auto select-none"
-        style={{ background: "linear-gradient(135deg, #472913 0%, #6B4226 100%)" }}
-      >
-        S
-      </div>
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#472913" }}>
-          SAYO
-        </h1>
-        <p className="text-sm text-muted-foreground">Plataforma Financiera Digital</p>
-      </div>
-    </div>
-  )
-
-  // ── Shared page wrapper ───────────────────────────────────────
-  const PageWrapper = ({ children }: { children: React.ReactNode }) => (
-    <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5] p-4">
-      <div className="w-full max-w-sm">
-        {children}
-        <p className="text-center text-[11px] text-muted-foreground mt-6">
-          SOLVENDOM SOFOM E.N.R. | Regulado por CNBV
-        </p>
-      </div>
-    </div>
-  )
-
-  // ── Error banner ──────────────────────────────────────────────
-  const ErrorBanner = ({ msg }: { msg: string }) => (
-    <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100">
-      <AlertCircle className="size-4 text-red-500 mt-0.5 shrink-0" />
-      <p className="text-xs text-red-600 leading-relaxed">{msg}</p>
-    </div>
-  )
+  // Components moved outside — see below
 
   // ============================================================
   // RENDER: Login form (default)
