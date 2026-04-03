@@ -43,7 +43,8 @@ export interface AuthState {
 }
 
 export interface AuthActions {
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; mfaRequired?: boolean; factorId?: string }>
+  verifyMfa: (factorId: string, code: string) => Promise<{ success: boolean; error?: string }>
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
   demoLogin: (portalId: PortalId) => void
@@ -410,6 +411,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.session && data.user) {
+        // Check if MFA (TOTP) is required
+        const { data: mfaData } = await supabase.auth.mfa.listFactors()
+        const totpFactors = mfaData?.totp?.filter((f) => f.status === "verified") ?? []
+
+        if (totpFactors.length > 0) {
+          // User has MFA enabled — don't authenticate yet, return mfaRequired
+          setState((s) => ({ ...s, isLoading: false }))
+          return {
+            success: false,
+            error: "MFA_REQUIRED",
+            mfaRequired: true,
+            factorId: totpFactors[0].id,
+          } as { success: boolean; error?: string; mfaRequired?: boolean; factorId?: string }
+        }
+
         // Fetch profile — failure here must never block the user from
         // accessing the app after a successful Supabase authentication.
         const { data: profile } = await supabase
@@ -528,6 +544,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error de registro"
       setState((s) => ({ ...s, isLoading: false, error: msg }))
+      return { success: false, error: msg }
+    }
+  }
+
+  const verifyMfa = async (factorId: string, code: string): Promise<{ success: boolean; error?: string }> => {
+    const supabase = getSupabase()
+    if (!supabase) return { success: false, error: "Supabase no configurado" }
+
+    try {
+      // Create challenge
+      const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId })
+      if (challengeErr) return { success: false, error: challengeErr.message }
+
+      // Verify with TOTP code
+      const { data: verifyData, error: verifyErr } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId: challenge.id,
+        code,
+      })
+      if (verifyErr) return { success: false, error: "Código incorrecto. Intenta de nuevo." }
+
+      // MFA verified — now complete the login
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single()
+
+        const authUser = profile ? profileToAuthUser(profile) : jwtToAuthUser(session.user)
+
+        setState((s) => ({
+          ...s,
+          user: authUser,
+          session,
+          profile: profile ?? null,
+          isAuthenticated: true,
+          isLoading: false,
+        }))
+        resetInactivityTimer()
+        return { success: true }
+      }
+
+      return { success: false, error: "Sesión no encontrada después de MFA" }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error de verificación MFA"
       return { success: false, error: msg }
     }
   }
@@ -682,6 +745,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     ...state,
     login,
+    verifyMfa,
     register,
     logout,
     demoLogin,

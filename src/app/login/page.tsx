@@ -10,13 +10,18 @@ export default function LoginPage() {
   const router = useRouter()
   const auth = useAuth()
 
-  // Stable ref to login function — never changes between renders
+  // Stable refs to prevent React.memo invalidation
   const loginRef = React.useRef(auth.login)
   loginRef.current = auth.login
+  const verifyMfaRef = React.useRef(auth.verifyMfa)
+  verifyMfaRef.current = auth.verifyMfa
 
-  // Stable callback that React.memo can trust
   const stableLogin = React.useCallback(
     (email: string, password: string) => loginRef.current(email, password),
+    []
+  )
+  const stableVerifyMfa = React.useCallback(
+    (factorId: string, code: string) => verifyMfaRef.current(factorId, code),
     []
   )
 
@@ -35,5 +40,5 @@ export default function LoginPage() {
     )
   }
 
-  return <LoginForm onLogin={stableLogin} />
+  return <LoginForm onLogin={stableLogin} onVerifyMfa={stableVerifyMfa} />
 }
