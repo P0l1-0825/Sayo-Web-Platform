@@ -8,16 +8,26 @@ import { LoginForm } from "./login-form"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, isAuthenticated, user, isLoading: authLoading } = useAuth()
+  const auth = useAuth()
+
+  // Stable ref to login function — never changes between renders
+  const loginRef = React.useRef(auth.login)
+  loginRef.current = auth.login
+
+  // Stable callback that React.memo can trust
+  const stableLogin = React.useCallback(
+    (email: string, password: string) => loginRef.current(email, password),
+    []
+  )
 
   // Redirect if already authenticated
   React.useEffect(() => {
-    if (isAuthenticated && user) {
-      router.push(user.role === "L6_SUPERADMIN" ? "/portals" : `/${user.portal}`)
+    if (auth.isAuthenticated && auth.user) {
+      router.push(auth.user.role === "L6_SUPERADMIN" ? "/portals" : `/${auth.user.portal}`)
     }
-  }, [isAuthenticated, user, router])
+  }, [auth.isAuthenticated, auth.user, router])
 
-  if (authLoading) {
+  if (auth.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="size-8 animate-spin text-primary" />
@@ -25,5 +35,5 @@ export default function LoginPage() {
     )
   }
 
-  return <LoginForm onLogin={login} />
+  return <LoginForm onLogin={stableLogin} />
 }
