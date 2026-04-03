@@ -141,3 +141,22 @@
     @apply font-sans;
   }
 }
+
+/* SAYO brand utilities */
+@layer utilities {
+  .bg-sayo-gradient {
+    background: linear-gradient(135deg, var(--color-sayo-cafe) 0%, var(--color-sayo-cafe-light, #6B4226) 100%);
+  }
+}
+
+/* Accessibility: respect reduced motion preference (WCAG 2.1 SC 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
