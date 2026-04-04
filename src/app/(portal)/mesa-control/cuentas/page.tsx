@@ -82,8 +82,8 @@ export default function CuentasPage() {
     setLoadingSubc(true)
     try {
       const result = await concentradoraService.getSubcuentas({ limit: 200 })
-      setSubcuentas(result.data)
-      setTotalSubc(result.total)
+      setSubcuentas(result?.data ?? [])
+      setTotalSubc(result?.total ?? 0)
     } catch (err) {
       toast.error("Error al cargar subcuentas", {
         description: err instanceof Error ? err.message : "Error desconocido",
@@ -182,9 +182,9 @@ export default function CuentasPage() {
 
   // ── Status tabs ─────────────────────────────────────────────
   const statusTabs = [
-    { label: "Activa",    value: "active",   count: subcuentas.filter((s) => s.status === "active").length },
-    { label: "Bloqueada", value: "blocked",  count: subcuentas.filter((s) => s.status === "blocked").length },
-    { label: "Inactiva",  value: "inactive", count: subcuentas.filter((s) => s.status === "inactive").length },
+    { label: "Activa",    value: "active",   count: (subcuentas ?? []).filter((s) => s.status === "active").length },
+    { label: "Bloqueada", value: "blocked",  count: (subcuentas ?? []).filter((s) => s.status === "blocked").length },
+    { label: "Inactiva",  value: "inactive", count: (subcuentas ?? []).filter((s) => s.status === "inactive").length },
   ]
 
   // ── Table columns ────────────────────────────────────────────
@@ -396,9 +396,9 @@ export default function CuentasPage() {
                   <p className="text-[10px] text-muted-foreground uppercase">Subcuentas</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <span className="text-xs font-semibold">{concentradora.total_subcuentas.toLocaleString()} total</span>
-                  <span className="text-xs text-sayo-green">{concentradora.active_subcuentas} activas</span>
-                  {concentradora.blocked_subcuentas > 0 && (
+                  <span className="text-xs font-semibold">{(concentradora?.total_subcuentas ?? 0).toLocaleString()} total</span>
+                  <span className="text-xs text-sayo-green">{concentradora?.active_subcuentas ?? 0} activas</span>
+                  {(concentradora?.blocked_subcuentas ?? 0) > 0 && (
                     <span className="text-xs text-sayo-orange">{concentradora.blocked_subcuentas} bloqueadas</span>
                   )}
                 </div>
