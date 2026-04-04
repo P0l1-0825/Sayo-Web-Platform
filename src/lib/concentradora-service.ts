@@ -249,7 +249,8 @@ export const concentradoraService = {
       const limit  = params?.limit  ?? 50
       return { data: result.slice(offset, offset + limit), total: result.length }
     }
-    return api.get<{ data: SubcuentaRecord[]; total: number }>(
+    // api.get() unwraps body.data, so we get the raw array
+    const items = await api.get<SubcuentaRecord[]>(
       `/api/v1/banking/concentradora/subcuentas${buildQuery({
         status: params?.status,
         search: params?.search,
@@ -257,6 +258,9 @@ export const concentradoraService = {
         offset: params?.offset,
       })}`
     )
+    // Wrap in the expected shape
+    const arr = Array.isArray(items) ? items : []
+    return { data: arr, total: arr.length }
   },
 
   /**
