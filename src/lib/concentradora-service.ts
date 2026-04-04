@@ -221,7 +221,7 @@ export const concentradoraService = {
    */
   async getConcentradora(): Promise<ConcentradoraInfo> {
     if (isDemoMode) return demoConcentradora
-    return api.get<ConcentradoraInfo>("/api/v1/banking/concentradora/")
+    return api.get<ConcentradoraInfo>("/api/v1/banking/concentradora")
   },
 
   /**
