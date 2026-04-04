@@ -243,7 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from("profiles")
           .select("*")
           .eq("id", session.user.id)
-          .single()
+          .maybeSingle()
 
         if (profile) {
           setState((s) => ({
@@ -291,7 +291,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .from("profiles")
               .select("*")
               .eq("id", session.user.id)
-              .single()
+              .maybeSingle()
 
             const authUser = profile
               ? profileToAuthUser(profile)
@@ -452,7 +452,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from("profiles")
           .select("*")
           .eq("id", data.user.id)
-          .single()
+          .maybeSingle()
 
         // Graceful degradation: build from JWT metadata when profile row
         // is unavailable (RLS policy not satisfied, row not yet created
@@ -592,7 +592,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from("profiles")
           .select("*")
           .eq("id", session.user.id)
-          .single()
+          .maybeSingle()
 
         const authUser = profile ? profileToAuthUser(profile) : jwtToAuthUser(session.user)
 
@@ -713,7 +713,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .from("profiles")
       .select("*")
       .eq("id", state.user.id)
-      .single()
+      .maybeSingle()
 
     if (profile) {
       setState((s) => ({
