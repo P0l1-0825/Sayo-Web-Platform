@@ -263,35 +263,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
           if (event === "SIGNED_IN" && session) {
-            // Check if user has MFA enabled — if so, DON'T set isAuthenticated
-            // until MFA verification is complete (AAL2). The login() function
-            // handles the MFA flow separately.
-            const { data: mfaData } = await supabase.auth.mfa.listFactors()
-            const hasVerifiedTotp = (mfaData?.totp?.filter((f) => f.status === "verified") ?? []).length > 0
-            const isAal2 = session.aal === "aal2"
-
-            if (hasVerifiedTotp && !isAal2) {
-              // MFA required but not yet verified — keep session but don't authenticate
-              setState((s) => ({ ...s, session, isLoading: false }))
-              return
-            }
-
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", session.user.id)
-              .maybeSingle()
-
-            const authUser = profile
-              ? profileToAuthUser(profile)
-              : jwtToAuthUser(session.user)
+            // Build user from JWT metadata — NO async DB calls here to avoid
+            // triggering additional auth state changes (infinite loop risk).
+            const authUser = jwtToAuthUser(session.user)
 
             setState((s) => ({
               ...s,
               user: authUser,
               session,
-              profile: profile ?? null,
               isAuthenticated: true,
+              isLoading: false,
             }))
           } else if (event === "SIGNED_OUT") {
             setState((s) => ({
