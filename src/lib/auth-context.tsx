@@ -227,17 +227,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
-        // Check MFA — if user has verified TOTP but session is AAL1,
-        // don't authenticate. They need to complete MFA first.
-        const { data: mfaCheck } = await supabase.auth.mfa.listFactors()
-        const hasVerifiedTotp = (mfaCheck?.totp?.filter((f) => f.status === "verified") ?? []).length > 0
-        if (hasVerifiedTotp && session.aal !== "aal2") {
-          // MFA required — clear the stored session so login page shows
-          await supabase.auth.signOut()
-          setState((s) => ({ ...s, isLoading: false }))
-          return
-        }
-
         // Fetch profile
         const { data: profile } = await supabase
           .from("profiles")
