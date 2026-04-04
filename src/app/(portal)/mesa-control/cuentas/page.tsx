@@ -82,8 +82,12 @@ export default function CuentasPage() {
     setLoadingSubc(true)
     try {
       const result = await concentradoraService.getSubcuentas({ limit: 200 })
-      setSubcuentas(result?.data ?? [])
-      setTotalSubc(result?.total ?? 0)
+      // api.get() unwraps body.data, so result may be the array directly
+      // or { data: [...], total: N } depending on the backend response shape
+      const items = Array.isArray(result) ? result : (result?.data ?? [])
+      const total = Array.isArray(result) ? result.length : (result?.total ?? 0)
+      setSubcuentas(items)
+      setTotalSubc(total)
     } catch (err) {
       toast.error("Error al cargar subcuentas", {
         description: err instanceof Error ? err.message : "Error desconocido",
