@@ -323,6 +323,29 @@ export const cardService = {
     return api.get<Chargeback>(`${CARD_API}/chargebacks/${chargebackId}`)
   },
 
+  async fundCard(
+    cardId: string,
+    amount: number,
+    accountId?: string
+  ): Promise<{
+    card_id: string
+    funded: number
+    card_balance: number
+    sayo_movement_id: string
+    sayo_balance_after: number
+  }> {
+    if (isDemoMode) {
+      return {
+        card_id: cardId,
+        funded: amount,
+        card_balance: amount,
+        sayo_movement_id: `mov-${Date.now()}`,
+        sayo_balance_after: 45000 - amount,
+      }
+    }
+    return api.post(`/api/v1/cards/cards/${cardId}/fund`, { amount, account_id: accountId })
+  },
+
   async createTravelNotice(
     userId: string,
     countries: string[],

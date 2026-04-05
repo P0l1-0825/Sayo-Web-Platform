@@ -15,8 +15,13 @@ import {
   DialogClose,
 } from "@/components/ui/dialog"
 import { formatMoney } from "@/lib/utils"
-import { Send, Star, Clock, ArrowUpRight, ArrowDownLeft, Eye, Check, X, Copy, Plus, Trash2 } from "lucide-react"
+import { Send, Star, Clock, ArrowUpRight, ArrowDownLeft, Check, Copy, Plus, Trash2, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/lib/auth-context"
+import { accountsService, type Account, type TransactionRecord } from "@/lib/accounts-service"
+import { ApiError } from "@/lib/api-client"
+
+// ── Types ──────────────────────────────────────────────────────
 
 interface Favorite {
   id: string
@@ -25,57 +30,174 @@ interface Favorite {
   clabe: string
 }
 
-interface Transfer {
-  id: string
-  type: "egreso" | "ingreso"
-  name: string
-  amount: number
-  date: string
-  status: "completada" | "pendiente" | "rechazada"
-  clabe?: string
-  concept?: string
-  reference?: string
+interface TransferForm {
+  clabe: string
+  bank: string
+  beneficiary: string
+  amount: string
+  concept: string
 }
 
-const initialFavorites: Favorite[] = [
-  { id: "FAV-1", name: "Carlos Ruiz", bank: "Banorte", clabe: "072180005678901234" },
-  { id: "FAV-2", name: "María López", bank: "BBVA", clabe: "012180001234567891" },
-  { id: "FAV-3", name: "CFE", bank: "Banamex", clabe: "002180007890123456" },
-]
-
-const initialHistory: Transfer[] = [
-  { id: "TRX-001", type: "egreso", name: "Carlos Ruiz", amount: 5000, date: "2024-03-02", status: "completada", clabe: "072180005678901234", concept: "Pago renta marzo", reference: "SPEI-2024-001" },
-  { id: "TRX-002", type: "ingreso", name: "Empresa ABC S.A.", amount: 125000, date: "2024-03-01", status: "completada", clabe: "646180009876543210", concept: "Nómina quincenal", reference: "NOM-2024-005" },
-  { id: "TRX-003", type: "egreso", name: "GNP Seguros", amount: 43000, date: "2024-02-28", status: "completada", clabe: "036180001122334455", concept: "Póliza auto anual", reference: "SPEI-2024-002" },
-  { id: "TRX-004", type: "egreso", name: "CFE", amount: 1200, date: "2024-02-25", status: "completada", clabe: "002180007890123456", concept: "Servicio eléctrico feb", reference: "PAG-CFE-001" },
-  { id: "TRX-005", type: "egreso", name: "Telmex", amount: 649, date: "2024-02-20", status: "completada", clabe: "002180006543210987", concept: "Internet fibra feb", reference: "SPEI-2024-003" },
-]
+// ── Bank code map ──────────────────────────────────────────────
 
 const bankMap: Record<string, string> = {
-  "002": "Banamex", "012": "BBVA", "014": "Santander", "021": "HSBC",
-  "030": "Bajío", "036": "Inbursa", "044": "Scotiabank", "058": "Banregio",
-  "072": "Banorte", "127": "Azteca", "646": "SAYO",
+  "002": "Banamex", "006": "Bancomext", "009": "Banobras", "012": "BBVA",
+  "014": "Santander", "021": "HSBC", "030": "Bajío", "036": "Inbursa",
+  "042": "Mifel", "044": "Scotiabank", "058": "Banregio", "059": "Invex",
+  "060": "Bansi", "062": "Afirme", "072": "Banorte", "102": "ABN AMRO",
+  "103": "American Express", "106": "BAMSA", "108": "Tokyo", "110": "JP Morgan",
+  "112": "Bansí", "113": "Banco del Ejército", "116": "IXE", "124": "Deutsche",
+  "126": "Credit Suisse", "127": "Azteca", "128": "Autofin", "132": "Multiva",
+  "133": "Actinver", "136": "HDFC", "137": "Bancrea", "138": "CIBANCO",
+  "145": "BBASE", "147": "Bankaool", "148": "PagaTodo", "149": "Inmobiliario Mexicano",
+  "155": "ICBC", "156": "Sabadell", "166": "BaBien", "168": "HIPOTECARIA FEDERAL",
+  "600": "Monexcb", "601": "GBM", "602": "Bamsa", "605": "Valuta",
+  "606": "Fondvesta", "607": "Base", "608": "Fincomún", "610": "BANAMEX2",
+  "611": "BBVA2", "613": "Multiva Cbolsa", "616": "FINAMEX", "617": "VALMEX",
+  "618": "ÚNICA", "619": "MAPFRE", "620": "PROFUTURO", "621": "CB ACTINVER",
+  "622": "Oactin", "623": "VALORE", "626": "CBDEUTSCHE", "627": "ZURICHVI",
+  "628": "ZUSHERVI", "629": "SU CASITA", "630": "CBINTER", "631": "CI BOLSA",
+  "632": "BULLTICK CB", "633": "VALUE", "634": "FONDIVISA", "636": "HDI SEGUROS",
+  "637": "ORDER", "638": "AKALA", "640": "CB JP MORGAN", "642": "REFORMA",
+  "646": "SAYO", "648": "EVERCORE", "649": "SKANDIA", "651": "SEGMENTA",
+  "652": "ASEA", "653": "KUSPIT", "655": "SOFIEXPRESS", "656": "UNAGRA",
+  "659": "ASP INTEGRA OPC", "670": "LIBERTAD", "674": "AXA", "679": "FND",
+  "684": "TRANSFER", "685": "FONDO (FIRA)", "686": "INVERCAP", "689": "FDEAM",
+  "699": "CoDi Valida", "706": "ARCUS", "710": "TELECOMUNICACIONES", "722": "Mercado Pago",
+  "723": "CUENCA", "728": "SPIN BY OXXO", "730": "NVIO", "901": "CoDi",
 }
 
+function detectBank(clabe: string): string {
+  if (clabe.length >= 3) {
+    const code = clabe.substring(0, 3)
+    return bankMap[code] || "Institución desconocida"
+  }
+  return ""
+}
+
+// ── Helpers to map API records to local Transfer display format ─
+
+function mapTransactionToDisplay(txn: TransactionRecord) {
+  const isIngreso = txn.direction === "IN"
+  return {
+    id: txn.id,
+    type: (isIngreso ? "ingreso" : "egreso") as "ingreso" | "egreso",
+    name: isIngreso ? (txn.sender_name ?? "Desconocido") : (txn.receiver_name ?? "Desconocido"),
+    amount: txn.amount,
+    date: txn.initiated_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    status: mapStatus(txn.status),
+    clabe: isIngreso ? (txn.sender_clabe ?? undefined) : (txn.receiver_clabe ?? undefined),
+    concept: txn.concepto ?? undefined,
+    reference: txn.clave_rastreo ?? undefined,
+  }
+}
+
+function mapStatus(s: string): "completada" | "pendiente" | "rechazada" {
+  if (s === "completada" || s === "completed") return "completada"
+  if (s === "rechazada" || s === "rejected" || s === "failed") return "rechazada"
+  return "pendiente"
+}
+
+// ── Component ─────────────────────────────────────────────────
+
 export default function TransferenciasPage() {
-  const [favorites, setFavorites] = React.useState<Favorite[]>(initialFavorites)
-  const [history, setHistory] = React.useState<Transfer[]>(initialHistory)
-  const [form, setForm] = React.useState({ clabe: "", bank: "", beneficiary: "", amount: "", concept: "" })
+  const { user } = useAuth()
+
+  // ── Primary account state ────────────────────────────────────
+  const [primaryAccount, setPrimaryAccount] = React.useState<Account | null>(null)
+  const [loadingAccount, setLoadingAccount] = React.useState(true)
+
+  // ── History state ────────────────────────────────────────────
+  const [history, setHistory] = React.useState<ReturnType<typeof mapTransactionToDisplay>[]>([])
+  const [loadingHistory, setLoadingHistory] = React.useState(true)
+
+  // ── Favorites (beneficiaries) state ─────────────────────────
+  const [favorites, setFavorites] = React.useState<Favorite[]>([])
+  const [loadingFavorites, setLoadingFavorites] = React.useState(true)
+
+  // ── Form state ───────────────────────────────────────────────
+  const [form, setForm] = React.useState<TransferForm>({ clabe: "", bank: "", beneficiary: "", amount: "", concept: "" })
+
+  // ── Dialog state ─────────────────────────────────────────────
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [successOpen, setSuccessOpen] = React.useState(false)
   const [detailOpen, setDetailOpen] = React.useState(false)
-  const [selectedTrx, setSelectedTrx] = React.useState<Transfer | null>(null)
   const [newFavOpen, setNewFavOpen] = React.useState(false)
-  const [newFavForm, setNewFavForm] = React.useState({ name: "", clabe: "" })
-  const [lastTrx, setLastTrx] = React.useState<Transfer | null>(null)
 
-  const detectBank = (clabe: string) => {
-    if (clabe.length >= 3) {
-      const code = clabe.substring(0, 3)
-      return bankMap[code] || "Institución desconocida"
+  // ── Submission state ─────────────────────────────────────────
+  const [submitting, setSubmitting] = React.useState(false)
+  const [lastTrx, setLastTrx] = React.useState<ReturnType<typeof mapTransactionToDisplay> | null>(null)
+  const [selectedTrx, setSelectedTrx] = React.useState<ReturnType<typeof mapTransactionToDisplay> | null>(null)
+  const [newFavForm, setNewFavForm] = React.useState({ name: "", clabe: "" })
+
+  // ── Load primary account ──────────────────────────────────────
+
+  const loadPrimaryAccount = React.useCallback(async () => {
+    if (!user) return
+    setLoadingAccount(true)
+    try {
+      const accounts = await accountsService.getAccounts(user.id)
+      const primary = accounts.find((a) => a.account_type === "debito" && a.status === "active")
+        ?? accounts.find((a) => a.status === "active")
+        ?? accounts[0]
+        ?? null
+      setPrimaryAccount(primary)
+    } catch (err) {
+      toast.error("Error al cargar cuenta", {
+        description: err instanceof Error ? err.message : "Error desconocido",
+      })
+    } finally {
+      setLoadingAccount(false)
     }
-    return ""
-  }
+  }, [user])
+
+  // ── Load transaction history ──────────────────────────────────
+
+  const loadHistory = React.useCallback(async () => {
+    if (!user) return
+    setLoadingHistory(true)
+    try {
+      const txns = await accountsService.getUserTransactions(user.id, 50)
+      setHistory(txns.map(mapTransactionToDisplay))
+    } catch (err) {
+      toast.error("Error al cargar historial", {
+        description: err instanceof Error ? err.message : "Error desconocido",
+      })
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [user])
+
+  // ── Load beneficiaries (favorites) ───────────────────────────
+
+  const loadBeneficiaries = React.useCallback(async () => {
+    if (!user) return
+    setLoadingFavorites(true)
+    try {
+      const bens = await accountsService.getBeneficiaries(user.id)
+      setFavorites(
+        bens.map((b) => ({
+          id: b.id,
+          name: b.alias ?? b.name,
+          bank: b.bank_name,
+          clabe: b.clabe,
+        }))
+      )
+    } catch (err) {
+      // Non-critical: favorites can fail silently
+      console.error("Error loading beneficiaries:", err)
+    } finally {
+      setLoadingFavorites(false)
+    }
+  }, [user])
+
+  React.useEffect(() => {
+    loadPrimaryAccount()
+    loadHistory()
+    loadBeneficiaries()
+  }, [loadPrimaryAccount, loadHistory, loadBeneficiaries])
+
+  // ── Form handlers ─────────────────────────────────────────────
 
   const handleClabeChange = (val: string) => {
     const clean = val.replace(/\D/g, "").slice(0, 18)
@@ -100,48 +222,114 @@ export default function TransferenciasPage() {
       toast.error("Ingresa el nombre del beneficiario")
       return
     }
+    if (!primaryAccount) {
+      toast.error("No se encontró una cuenta de origen")
+      return
+    }
     setConfirmOpen(true)
   }
 
-  const handleConfirmTransfer = () => {
-    const newTrx: Transfer = {
-      id: `TRX-${String(history.length + 1).padStart(3, "0")}`,
-      type: "egreso",
-      name: form.beneficiary,
-      amount: parseFloat(form.amount),
-      date: new Date().toISOString().slice(0, 10),
-      status: "completada",
-      clabe: form.clabe,
-      concept: form.concept || "Transferencia SPEI",
-      reference: `SPEI-${Date.now().toString().slice(-6)}`,
+  // ── Core transfer call ─────────────────────────────────────────
+
+  const handleConfirmTransfer = async () => {
+    if (!primaryAccount || !user) return
+    setSubmitting(true)
+    try {
+      const txn = await accountsService.createTransfer({
+        accountId: primaryAccount.id,
+        userId: user.id,
+        receiverName: form.beneficiary,
+        receiverBank: form.bank || detectBank(form.clabe),
+        receiverClabe: form.clabe,
+        amount: parseFloat(form.amount),
+        concepto: form.concept || "Transferencia SPEI",
+      })
+
+      const displayTrx = mapTransactionToDisplay(txn)
+      setHistory((prev) => [displayTrx, ...prev])
+      setLastTrx(displayTrx)
+      setConfirmOpen(false)
+      setSuccessOpen(true)
+      setForm({ clabe: "", bank: "", beneficiary: "", amount: "", concept: "" })
+
+      // Refresh history to get server-confirmed state
+      setTimeout(() => loadHistory(), 2000)
+    } catch (err) {
+      setConfirmOpen(false)
+      if (err instanceof ApiError) {
+        if (err.code === "INSUFFICIENT_FUNDS" || err.status === 402) {
+          toast.error("Fondos insuficientes", {
+            description: "Tu saldo disponible no es suficiente para esta transferencia.",
+          })
+        } else if (err.code === "INVALID_CLABE" || err.status === 422) {
+          toast.error("CLABE inválida", {
+            description: "Verifica que la CLABE destino sea correcta.",
+          })
+        } else {
+          toast.error(`Error al procesar transferencia (${err.code})`, {
+            description: err.message,
+          })
+        }
+      } else {
+        toast.error("Error de red", {
+          description: "No se pudo conectar con el servidor. Intenta nuevamente.",
+        })
+      }
+    } finally {
+      setSubmitting(false)
     }
-    setHistory([newTrx, ...history])
-    setLastTrx(newTrx)
-    setConfirmOpen(false)
-    setSuccessOpen(true)
-    setForm({ clabe: "", bank: "", beneficiary: "", amount: "", concept: "" })
   }
 
-  const handleViewDetail = (trx: Transfer) => {
+  const handleViewDetail = (trx: ReturnType<typeof mapTransactionToDisplay>) => {
     setSelectedTrx(trx)
     setDetailOpen(true)
   }
 
-  const handleAddFavorite = () => {
+  // ── Favorites handlers ────────────────────────────────────────
+
+  const handleAddFavorite = async () => {
     if (!newFavForm.name || !newFavForm.clabe || newFavForm.clabe.length !== 18) {
       toast.error("Completa nombre y CLABE válida")
       return
     }
-    const newFav: Favorite = {
-      id: `FAV-${favorites.length + 1}`,
-      name: newFavForm.name,
-      bank: detectBank(newFavForm.clabe),
-      clabe: newFavForm.clabe,
+    if (!user) return
+
+    const bank = detectBank(newFavForm.clabe)
+    try {
+      await accountsService.addBeneficiary({
+        user_id: user.id,
+        name: newFavForm.name,
+        bank_name: bank,
+        bank_code: newFavForm.clabe.substring(0, 3),
+        clabe: newFavForm.clabe,
+        alias: null,
+        email: null,
+        phone: null,
+        is_favorite: true,
+      })
+      const newFav: Favorite = {
+        id: `fav-${Date.now()}`,
+        name: newFavForm.name,
+        bank,
+        clabe: newFavForm.clabe,
+      }
+      setFavorites((prev) => [...prev, newFav])
+      setNewFavOpen(false)
+      setNewFavForm({ name: "", clabe: "" })
+      toast.success("Favorito agregado", { description: newFavForm.name })
+    } catch {
+      // Fallback to local only if API fails
+      const newFav: Favorite = {
+        id: `fav-${Date.now()}`,
+        name: newFavForm.name,
+        bank,
+        clabe: newFavForm.clabe,
+      }
+      setFavorites((prev) => [...prev, newFav])
+      setNewFavOpen(false)
+      setNewFavForm({ name: "", clabe: "" })
+      toast.success("Favorito guardado localmente", { description: newFavForm.name })
     }
-    setFavorites([...favorites, newFav])
-    setNewFavOpen(false)
-    setNewFavForm({ name: "", clabe: "" })
-    toast.success("Favorito agregado", { description: newFav.name })
   }
 
   const handleDeleteFavorite = (fav: Favorite, e: React.MouseEvent) => {
@@ -150,33 +338,73 @@ export default function TransferenciasPage() {
     toast.success("Favorito eliminado", { description: fav.name })
   }
 
-  const handleSaveAsFavorite = () => {
-    if (!lastTrx) return
-    const newFav: Favorite = {
-      id: `FAV-${favorites.length + 1}`,
-      name: lastTrx.name,
-      bank: detectBank(lastTrx.clabe || ""),
-      clabe: lastTrx.clabe || "",
+  const handleSaveAsFavorite = async () => {
+    if (!lastTrx || !user) return
+    const bank = detectBank(lastTrx.clabe ?? "")
+    try {
+      await accountsService.addBeneficiary({
+        user_id: user.id,
+        name: lastTrx.name,
+        bank_name: bank,
+        bank_code: (lastTrx.clabe ?? "").substring(0, 3),
+        clabe: lastTrx.clabe ?? "",
+        alias: null,
+        email: null,
+        phone: null,
+        is_favorite: true,
+      })
+      setFavorites((prev) => [
+        ...prev,
+        { id: `fav-${Date.now()}`, name: lastTrx.name, bank, clabe: lastTrx.clabe ?? "" },
+      ])
+      toast.success("Guardado como favorito", { description: lastTrx.name })
+    } catch {
+      setFavorites((prev) => [
+        ...prev,
+        { id: `fav-${Date.now()}`, name: lastTrx.name, bank, clabe: lastTrx.clabe ?? "" },
+      ])
+      toast.success("Guardado como favorito", { description: lastTrx.name })
     }
-    setFavorites([...favorites, newFav])
-    toast.success("Guardado como favorito", { description: lastTrx.name })
   }
+
+  // ── Render ─────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Transferencias</h1>
-        <p className="text-sm text-muted-foreground">Enviar y recibir dinero vía SPEI</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">Transferencias</h1>
+          <p className="text-sm text-muted-foreground">Enviar y recibir dinero vía SPEI</p>
+        </div>
+        {primaryAccount && (
+          <div className="text-right hidden sm:block">
+            <p className="text-xs text-muted-foreground">Cuenta origen</p>
+            <p className="text-sm font-semibold">{formatMoney(primaryAccount.available_balance)}</p>
+            <p className="text-[10px] text-muted-foreground font-mono">****{primaryAccount.clabe.slice(-4)}</p>
+          </div>
+        )}
       </div>
 
       {/* Transfer Form */}
       <Card>
         <CardContent className="p-6 space-y-4">
-          <h2 className="text-sm font-semibold">Nueva Transferencia SPEI</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Nueva Transferencia SPEI</h2>
+            {loadingAccount && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" /> Cargando cuenta...
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">CLABE Destino *</label>
-              <Input placeholder="18 dígitos..." maxLength={18} value={form.clabe} onChange={(e) => handleClabeChange(e.target.value)} />
+              <Input
+                placeholder="18 dígitos..."
+                maxLength={18}
+                value={form.clabe}
+                onChange={(e) => handleClabeChange(e.target.value)}
+              />
               {form.clabe.length > 0 && form.clabe.length < 18 && (
                 <p className="text-[10px] text-muted-foreground mt-0.5">{form.clabe.length}/18 dígitos</p>
               )}
@@ -189,19 +417,41 @@ export default function TransferenciasPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Beneficiario *</label>
-              <Input placeholder="Nombre del beneficiario" value={form.beneficiary} onChange={(e) => setForm({ ...form, beneficiary: e.target.value })} />
+              <Input
+                placeholder="Nombre del beneficiario"
+                value={form.beneficiary}
+                onChange={(e) => setForm({ ...form, beneficiary: e.target.value })}
+              />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Monto *</label>
-              <Input placeholder="$0.00" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+              <Input
+                placeholder="$0.00"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              />
             </div>
           </div>
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Concepto</label>
-            <Input placeholder="Concepto del pago (opcional)" value={form.concept} onChange={(e) => setForm({ ...form, concept: e.target.value })} />
+            <Input
+              placeholder="Concepto del pago (opcional)"
+              value={form.concept}
+              onChange={(e) => setForm({ ...form, concept: e.target.value })}
+            />
           </div>
-          <div className="flex justify-end">
-            <Button onClick={handleTransfer}><Send className="size-4 mr-1.5" /> Transferir</Button>
+          <div className="flex items-center justify-between">
+            {primaryAccount && (
+              <p className="text-xs text-muted-foreground">
+                Disponible: <span className="font-semibold">{formatMoney(primaryAccount.available_balance)}</span>
+              </p>
+            )}
+            <Button onClick={handleTransfer} disabled={loadingAccount || !primaryAccount} className="ml-auto">
+              <Send className="size-4 mr-1.5" /> Transferir
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -209,57 +459,129 @@ export default function TransferenciasPage() {
       {/* Favorites */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold flex items-center gap-1.5"><Star className="size-4 text-sayo-orange" /> Favoritos</h2>
+          <h2 className="text-sm font-semibold flex items-center gap-1.5">
+            <Star className="size-4 text-sayo-orange" /> Favoritos
+          </h2>
           <Button variant="outline" size="sm" onClick={() => setNewFavOpen(true)}>
             <Plus className="size-3 mr-1" /> Agregar
           </Button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {favorites.map((fav) => (
-            <Card key={fav.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => handleSelectFavorite(fav)}>
-              <CardContent className="p-3 flex items-center gap-2">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{fav.name}</p>
-                  <p className="text-xs text-muted-foreground">{fav.bank} • ****{fav.clabe.slice(-4)}</p>
-                </div>
-                <Button variant="ghost" size="icon-xs" onClick={(e) => handleDeleteFavorite(fav, e)} title="Eliminar">
-                  <Trash2 className="size-3 text-muted-foreground" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-          {favorites.length === 0 && (
-            <p className="text-xs text-muted-foreground col-span-full text-center py-4">No tienes favoritos guardados</p>
-          )}
-        </div>
+        {loadingFavorites ? (
+          <div className="flex gap-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex-1 h-16 rounded-lg bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {favorites.map((fav) => (
+              <Card
+                key={fav.id}
+                className="cursor-pointer hover:border-primary transition-colors"
+                onClick={() => handleSelectFavorite(fav)}
+              >
+                <CardContent className="p-3 flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{fav.name}</p>
+                    <p className="text-xs text-muted-foreground">{fav.bank} • ****{fav.clabe.slice(-4)}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={(e) => handleDeleteFavorite(fav, e)}
+                    title="Eliminar"
+                  >
+                    <Trash2 className="size-3 text-muted-foreground" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+            {favorites.length === 0 && (
+              <p className="text-xs text-muted-foreground col-span-full text-center py-4">
+                No tienes favoritos guardados
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* History */}
       <div>
-        <h2 className="text-sm font-semibold mb-3 flex items-center gap-1.5"><Clock className="size-4 text-muted-foreground" /> Historial</h2>
-        <div className="space-y-1">
-          {history.map((h) => (
-            <Card key={h.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleViewDetail(h)}>
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className={`size-8 rounded-full flex items-center justify-center ${h.type === "ingreso" ? "bg-green-100" : "bg-red-100"}`}>
-                  {h.type === "ingreso" ? <ArrowDownLeft className="size-4 text-green-600" /> : <ArrowUpRight className="size-4 text-red-600" />}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{h.name}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(h.date).toLocaleDateString("es-MX")} {h.concept && `• ${h.concept}`}</p>
-                </div>
-                <p className={`text-sm font-semibold ${h.type === "ingreso" ? "text-green-600" : "text-red-600"}`}>
-                  {h.type === "ingreso" ? "+" : "-"}{formatMoney(h.amount)}
-                </p>
-                <Badge variant="outline" className={`text-[10px] ${h.status === "completada" ? "bg-green-50 text-green-700" : h.status === "pendiente" ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"}`}>{h.status}</Badge>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold flex items-center gap-1.5">
+            <Clock className="size-4 text-muted-foreground" /> Historial
+          </h2>
+          <Button variant="ghost" size="sm" onClick={loadHistory} disabled={loadingHistory}>
+            <RefreshCw className={`size-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
+          </Button>
         </div>
+
+        {loadingHistory ? (
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : history.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <AlertCircle className="size-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No hay transferencias en el historial</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {history.map((h) => (
+              <Card
+                key={h.id}
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => handleViewDetail(h)}
+              >
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div
+                    className={`size-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      h.type === "ingreso" ? "bg-green-100" : "bg-red-100"
+                    }`}
+                  >
+                    {h.type === "ingreso" ? (
+                      <ArrowDownLeft className="size-4 text-green-600" />
+                    ) : (
+                      <ArrowUpRight className="size-4 text-red-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{h.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(h.date).toLocaleDateString("es-MX")}
+                      {h.concept ? ` • ${h.concept}` : ""}
+                    </p>
+                  </div>
+                  <p
+                    className={`text-sm font-semibold tabular-nums flex-shrink-0 ${
+                      h.type === "ingreso" ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {h.type === "ingreso" ? "+" : "-"}{formatMoney(h.amount)}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] flex-shrink-0 ${
+                      h.status === "completada"
+                        ? "bg-green-50 text-green-700"
+                        : h.status === "pendiente"
+                        ? "bg-yellow-50 text-yellow-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {h.status}
+                  </Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Confirm Transfer Dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <Dialog open={confirmOpen} onOpenChange={(open) => { if (!submitting) setConfirmOpen(open) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirmar Transferencia</DialogTitle>
@@ -285,9 +607,17 @@ export default function TransferenciasPage() {
                   <span>{form.concept}</span>
                 </div>
               )}
+              {primaryAccount && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Cuenta origen</span>
+                  <span className="font-mono text-xs">****{primaryAccount.clabe.slice(-4)}</span>
+                </div>
+              )}
               <div className="border-t pt-2 mt-2 flex justify-between">
                 <span className="text-sm font-medium">Monto</span>
-                <span className="text-xl font-bold text-sayo-cafe">{formatMoney(parseFloat(form.amount) || 0)}</span>
+                <span className="text-xl font-bold text-sayo-cafe">
+                  {formatMoney(parseFloat(form.amount) || 0)}
+                </span>
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground text-center">
@@ -295,9 +625,14 @@ export default function TransferenciasPage() {
             </p>
           </div>
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
-            <Button onClick={handleConfirmTransfer}>
-              <Check className="size-3.5 mr-1" /> Confirmar Envío
+            <DialogClose render={<Button variant="outline" disabled={submitting} />}>Cancelar</DialogClose>
+            <Button onClick={handleConfirmTransfer} disabled={submitting}>
+              {submitting ? (
+                <Loader2 className="size-3.5 mr-1 animate-spin" />
+              ) : (
+                <Check className="size-3.5 mr-1" />
+              )}
+              {submitting ? "Procesando..." : "Confirmar Envío"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -307,7 +642,7 @@ export default function TransferenciasPage() {
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>¡Transferencia Exitosa!</DialogTitle>
+            <DialogTitle>Transferencia Enviada</DialogTitle>
             <DialogDescription>Tu pago se ha procesado correctamente</DialogDescription>
           </DialogHeader>
           {lastTrx && (
@@ -316,21 +651,27 @@ export default function TransferenciasPage() {
                 <div className="size-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
                   <Check className="size-8 text-green-600" />
                 </div>
-                <p className="text-2xl font-bold text-green-600">{formatMoney(lastTrx.amount)}</p>
+                <p className="text-2xl font-bold text-green-600 tabular-nums">
+                  {formatMoney(lastTrx.amount)}
+                </p>
                 <p className="text-sm text-muted-foreground mt-1">enviado a {lastTrx.name}</p>
               </div>
               <div className="p-3 rounded-lg border text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Referencia</span>
-                  <span className="font-mono text-xs">{lastTrx.reference}</span>
-                </div>
+                {lastTrx.reference && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Referencia</span>
+                    <span className="font-mono text-xs">{lastTrx.reference}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Fecha</span>
                   <span>{new Date(lastTrx.date).toLocaleDateString("es-MX")}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Estado</span>
-                  <span className="text-green-600 font-medium">Completada</span>
+                  <span className={lastTrx.status === "completada" ? "text-green-600 font-medium" : "text-yellow-600 font-medium capitalize"}>
+                    {lastTrx.status}
+                  </span>
                 </div>
               </div>
             </div>
@@ -353,12 +694,30 @@ export default function TransferenciasPage() {
           </DialogHeader>
           {selectedTrx && (
             <div className="space-y-4">
-              <div className={`flex items-center justify-between p-3 rounded-lg ${selectedTrx.type === "ingreso" ? "bg-green-50" : "bg-red-50"}`}>
+              <div
+                className={`flex items-center justify-between p-3 rounded-lg ${
+                  selectedTrx.type === "ingreso" ? "bg-green-50" : "bg-red-50"
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  {selectedTrx.type === "ingreso" ? <ArrowDownLeft className="size-4 text-green-600" /> : <ArrowUpRight className="size-4 text-red-600" />}
-                  <span className={`text-sm font-medium capitalize ${selectedTrx.type === "ingreso" ? "text-green-700" : "text-red-700"}`}>{selectedTrx.type}</span>
+                  {selectedTrx.type === "ingreso" ? (
+                    <ArrowDownLeft className="size-4 text-green-600" />
+                  ) : (
+                    <ArrowUpRight className="size-4 text-red-600" />
+                  )}
+                  <span
+                    className={`text-sm font-medium capitalize ${
+                      selectedTrx.type === "ingreso" ? "text-green-700" : "text-red-700"
+                    }`}
+                  >
+                    {selectedTrx.type}
+                  </span>
                 </div>
-                <p className={`text-xl font-bold ${selectedTrx.type === "ingreso" ? "text-green-600" : "text-red-600"}`}>
+                <p
+                  className={`text-xl font-bold tabular-nums ${
+                    selectedTrx.type === "ingreso" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
                   {selectedTrx.type === "ingreso" ? "+" : "-"}{formatMoney(selectedTrx.amount)}
                 </p>
               </div>
@@ -392,17 +751,35 @@ export default function TransferenciasPage() {
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg border">
                 <span className="text-xs text-muted-foreground">Estado</span>
-                <Badge variant="outline" className={`text-[10px] ${selectedTrx.status === "completada" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"}`}>{selectedTrx.status}</Badge>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${
+                    selectedTrx.status === "completada"
+                      ? "bg-green-50 text-green-700"
+                      : selectedTrx.status === "pendiente"
+                      ? "bg-yellow-50 text-yellow-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {selectedTrx.status}
+                </Badge>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => {
-              if (selectedTrx) {
-                const text = `Transferencia SAYO\n${selectedTrx.name}\n${formatMoney(selectedTrx.amount)}\nRef: ${selectedTrx.reference}\nFecha: ${selectedTrx.date}`
-                navigator.clipboard.writeText(text).then(() => toast.success("Detalles copiados")).catch(() => toast.info("No se pudo copiar"))
-              }
-            }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (selectedTrx) {
+                  const text = `Transferencia SAYO\n${selectedTrx.name}\n${formatMoney(selectedTrx.amount)}\nRef: ${selectedTrx.reference ?? "N/A"}\nFecha: ${selectedTrx.date}`
+                  navigator.clipboard
+                    .writeText(text)
+                    .then(() => toast.success("Detalles copiados"))
+                    .catch(() => toast.info("No se pudo copiar"))
+                }
+              }}
+            >
               <Copy className="size-3.5 mr-1" /> Copiar
             </Button>
             <DialogClose render={<Button variant="outline" />}>Cerrar</DialogClose>
@@ -420,13 +797,26 @@ export default function TransferenciasPage() {
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Nombre / Alias *</label>
-              <Input placeholder="Ej: Carlos Ruiz" value={newFavForm.name} onChange={(e) => setNewFavForm({ ...newFavForm, name: e.target.value })} />
+              <Input
+                placeholder="Ej: Carlos Ruiz"
+                value={newFavForm.name}
+                onChange={(e) => setNewFavForm({ ...newFavForm, name: e.target.value })}
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">CLABE *</label>
-              <Input placeholder="18 dígitos" maxLength={18} value={newFavForm.clabe} onChange={(e) => setNewFavForm({ ...newFavForm, clabe: e.target.value.replace(/\D/g, "").slice(0, 18) })} />
+              <Input
+                placeholder="18 dígitos"
+                maxLength={18}
+                value={newFavForm.clabe}
+                onChange={(e) =>
+                  setNewFavForm({ ...newFavForm, clabe: e.target.value.replace(/\D/g, "").slice(0, 18) })
+                }
+              />
               {newFavForm.clabe.length >= 3 && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">Banco: {detectBank(newFavForm.clabe)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Banco: {detectBank(newFavForm.clabe)}
+                </p>
               )}
             </div>
           </div>

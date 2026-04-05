@@ -37,6 +37,7 @@ import {
   Trash2,
   DollarSign,
   Key,
+  Wallet,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cardService } from "@/lib/card-service"
@@ -498,16 +499,41 @@ export default function TarjetasPage() {
     }
   }
 
-  function handleFondear() {
-    if (!fondearAmount || Number(fondearAmount) <= 0) {
+  async function handleFondear() {
+    const amount = Number(fondearAmount)
+    if (!fondearAmount || amount <= 0) {
       toast.error("Ingresa un monto válido")
       return
     }
-    toast.success(`Fondeo de ${fmt(Number(fondearAmount))} iniciado`, {
-      description: "El saldo se reflejará en minutos",
-    })
-    setFondearOpen(false)
-    setFondearAmount("")
+    setActionLoading(true)
+    try {
+      const result = await cardService.fundCard(selected.id, amount)
+      // Update the local card balance so the UI reflects the new value
+      setCards((prev) =>
+        prev.map((c, i) =>
+          i === selectedIdx ? { ...c, balance: result.card_balance } : c
+        )
+      )
+      toast.success(`Tarjeta fondeada con ${fmt(result.funded)}`, {
+        description: `Saldo en tarjeta: ${fmt(result.card_balance)}`,
+      })
+      setFondearOpen(false)
+      setFondearAmount("")
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : String(err)
+      if (msg.includes("INSUFFICIENT_FUNDS")) {
+        toast.error("Saldo insuficiente", {
+          description: "No tienes fondos suficientes en tu cuenta SAYO para realizar este fondeo.",
+        })
+      } else {
+        toast.error("No se pudo fondear la tarjeta", {
+          description: "Intenta de nuevo o contacta a soporte.",
+        })
+      }
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   function handleSustituir() {
@@ -686,9 +712,10 @@ export default function TarjetasPage() {
                   size="sm"
                   onClick={() => setFondearOpen(true)}
                   disabled={selected.status !== "active"}
+                  className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                 >
-                  <DollarSign className="size-3.5 mr-1.5" />
-                  Fondear
+                  <Wallet className="size-3.5 mr-1.5" />
+                  Fondear Tarjeta
                 </Button>
 
                 {/* Sustituir */}
@@ -1163,13 +1190,24 @@ export default function TarjetasPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Fondear */}
-      <Dialog open={fondearOpen} onOpenChange={setFondearOpen}>
+      {/* Fondear Tarjeta */}
+      <Dialog open={fondearOpen} onOpenChange={(o) => { if (!o) setFondearAmount(""); setFondearOpen(o) }}>
         <DialogContent className="sm:max-w-xs">
           <DialogHeader>
-            <DialogTitle>Fondear Tarjeta</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="size-4 text-emerald-600" />
+              Fondear Tarjeta
+            </DialogTitle>
             <DialogDescription>
-              Transfiere fondos a tu tarjeta {selected?.card_number_masked}.
+              Transfiere fondos desde tu cuenta SAYO a{" "}
+              <span className="font-medium text-foreground">
+                {selected?.is_virtual ? "Tarjeta Virtual" : "Tarjeta Física"}
+              </span>{" "}
+              terminada en{" "}
+              <span className="font-mono font-medium text-foreground">
+                {selected?.card_number_masked?.slice(-4)}
+              </span>
+              .
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1179,13 +1217,26 @@ export default function TarjetasPage() {
               placeholder="0.00"
               value={fondearAmount}
               onChange={(e) => setFondearAmount(e.target.value)}
-              min="0"
+              min="1"
+              step="0.01"
+              disabled={actionLoading}
             />
+            <p className="text-[11px] text-muted-foreground">
+              El saldo se reflejará en tu tarjeta de inmediato.
+            </p>
           </div>
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
-            <Button className="bg-[#472913] hover:bg-[#5c3418] text-white" onClick={handleFondear}>
-              <DollarSign className="size-3.5 mr-1.5" />
+            <DialogClose render={<Button variant="outline" disabled={actionLoading} />}>Cancelar</DialogClose>
+            <Button
+              className="bg-emerald-700 hover:bg-emerald-800 text-white"
+              onClick={handleFondear}
+              disabled={actionLoading || !fondearAmount || Number(fondearAmount) <= 0}
+            >
+              {actionLoading ? (
+                <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Wallet className="size-3.5 mr-1.5" />
+              )}
               Fondear
             </Button>
           </DialogFooter>
