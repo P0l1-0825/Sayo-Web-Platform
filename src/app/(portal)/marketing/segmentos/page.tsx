@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Users, Filter, Layers, TrendingUp, Eye } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 interface Segmento {
   id: string; nombre: string; descripcion: string; filtros: string[]; tamano: number; tasaConversion: number; ltv: number; status: "activo" | "borrador" | "archivado"; ultimaActualizacion: string
@@ -22,12 +24,33 @@ const demoSegmentos: Segmento[] = [
 ]
 
 export default function SegmentosPage() {
-  const [segmentos] = React.useState(demoSegmentos)
+  const [segmentos, setSegmentos] = React.useState<Segmento[]>(demoSegmentos)
   const [selected, setSelected] = React.useState<Segmento | null>(null)
   const [open, setOpen] = React.useState(false)
+  const [loading, setLoading] = React.useState(!isDemoMode)
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<Segmento[]>("/api/v1/marketing/segments")
+        if (result?.length) setSegmentos(result)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
 
   const totalContactos = segmentos.reduce((s, sg) => s + sg.tamano, 0)
-  const avgConversion = (segmentos.filter(s => s.tasaConversion > 0).reduce((s, sg) => s + sg.tasaConversion, 0) / segmentos.filter(s => s.tasaConversion > 0).length).toFixed(1)
+  const activeWithConversion = segmentos.filter(s => s.tasaConversion > 0)
+  const avgConversion = activeWithConversion.length > 0
+    ? (activeWithConversion.reduce((s, sg) => s + sg.tasaConversion, 0) / activeWithConversion.length).toFixed(1)
+    : "0"
 
   return (
     <div className="space-y-6">

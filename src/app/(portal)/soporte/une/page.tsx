@@ -14,9 +14,10 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog"
-import { Scale, Clock, CheckCircle, Eye, Plus, Send, FileText, AlertTriangle } from "lucide-react"
+import { Scale, Clock, CheckCircle, Plus, Send, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { formatMoney } from "@/lib/utils"
+import { api, isDemoMode } from "@/lib/api-client"
 
 interface Queja {
   id: string
@@ -45,8 +46,24 @@ const statusMap: Record<string, { label: string; color: string; icon: React.Reac
   escalada: { label: "Escalada", color: "bg-red-100 text-red-700", icon: <AlertTriangle className="size-3" /> },
 }
 
+function QuejaSkeleton() {
+  return (
+    <Card>
+      <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 animate-pulse">
+        <div className="h-4 w-20 bg-muted rounded" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-4 w-48 bg-muted rounded" />
+          <div className="h-3 w-64 bg-muted rounded" />
+        </div>
+        <div className="h-5 w-16 bg-muted rounded-full" />
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function UNEPage() {
   const [quejas, setQuejas] = React.useState<Queja[]>(initialQuejas)
+  const [loading, setLoading] = React.useState(true)
   const [selectedQueja, setSelectedQueja] = React.useState<Queja | null>(null)
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [respondOpen, setRespondOpen] = React.useState(false)
@@ -59,6 +76,18 @@ export default function UNEPage() {
     amount: "",
     channel: "CONDUSEF",
   })
+
+  React.useEffect(() => {
+    async function load() {
+      if (isDemoMode) { setLoading(false); return }
+      try {
+        const result = await api.get<Queja[]>("/api/v1/support/une")
+        if (Array.isArray(result)) setQuejas(result)
+      } catch { /* keep demo data */ }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [])
 
   const handleView = (queja: Queja) => {
     setSelectedQueja(queja)
@@ -155,53 +184,56 @@ export default function UNEPage() {
       </div>
 
       <div className="space-y-2">
-        {quejas.map((q) => {
-          const status = statusMap[q.status] || statusMap.en_atencion
-          return (
-            <Card key={q.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleView(q)}>
-              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Scale className="size-4 text-muted-foreground" />
-                  <span className="font-mono text-xs">{q.id}</span>
-                </div>
-                <div className="flex-1">
+        {loading
+          ? Array.from({ length: 3 }).map((_, i) => <QuejaSkeleton key={i} />)
+          : quejas.map((q) => {
+            const status = statusMap[q.status] || statusMap.en_atencion
+            return (
+              <Card key={q.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleView(q)}>
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{q.subject}</p>
-                    <Badge variant="outline" className="text-[10px]">{q.channel}</Badge>
+                    <Scale className="size-4 text-muted-foreground" />
+                    <span className="font-mono text-xs">{q.id}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {q.clientName} • Folio: {q.folio} • Recibida: {q.receivedDate}
-                  </p>
-                </div>
-                {q.amount > 0 && (
-                  <span className="text-xs font-semibold tabular-nums">{formatMoney(q.amount)}</span>
-                )}
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${status.color}`}>
-                  {status.icon}
-                  {status.label}
-                </span>
-                {q.daysRemaining > 0 && (
-                  <div className="flex items-center gap-1 text-xs">
-                    <Clock className="size-3 text-muted-foreground" />
-                    <span className={q.daysRemaining < 10 ? "text-sayo-red font-bold" : "text-muted-foreground"}>{q.daysRemaining}d</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{q.subject}</p>
+                      <Badge variant="outline" className="text-[10px]">{q.channel}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {q.clientName} • Folio: {q.folio} • Recibida: {q.receivedDate}
+                    </p>
                   </div>
-                )}
-                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                  {q.status === "en_atencion" && (
-                    <Button variant="outline" size="sm" onClick={() => handleRespond(q)}>
-                      <Send className="size-3 mr-1" /> Responder
-                    </Button>
+                  {q.amount > 0 && (
+                    <span className="text-xs font-semibold tabular-nums">{formatMoney(q.amount)}</span>
                   )}
-                  {q.status === "respondida" && (
-                    <Button variant="outline" size="sm" className="text-sayo-green" onClick={() => handleClose(q)}>
-                      <CheckCircle className="size-3 mr-1" /> Cerrar
-                    </Button>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${status.color}`}>
+                    {status.icon}
+                    {status.label}
+                  </span>
+                  {q.daysRemaining > 0 && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <Clock className="size-3 text-muted-foreground" />
+                      <span className={q.daysRemaining < 10 ? "text-sayo-red font-bold" : "text-muted-foreground"}>{q.daysRemaining}d</span>
+                    </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    {q.status === "en_atencion" && (
+                      <Button variant="outline" size="sm" onClick={() => handleRespond(q)}>
+                        <Send className="size-3 mr-1" /> Responder
+                      </Button>
+                    )}
+                    {q.status === "respondida" && (
+                      <Button variant="outline" size="sm" className="text-sayo-green" onClick={() => handleClose(q)}>
+                        <CheckCircle className="size-3 mr-1" /> Cerrar
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })
+        }
       </div>
 
       {/* Detail Dialog */}

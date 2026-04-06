@@ -3,10 +3,9 @@
 import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Store, Package, Users, DollarSign, Eye, Star } from "lucide-react"
-
-const fmt = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n)
+import { Store, Package, Users, Star } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 interface Beneficio {
   id: string; nombre: string; partner: string; categoria: string; descuento: string; redenciones: number; inventario: number; status: "activo" | "agotado" | "pausado"; rating: number
@@ -22,9 +21,29 @@ const demoBeneficios: Beneficio[] = [
 ]
 
 export default function MarketplacePage() {
-  const totalRedenciones = demoBeneficios.reduce((s, b) => s + b.redenciones, 0)
-  const activos = demoBeneficios.filter((b) => b.status === "activo").length
-  const partners = new Set(demoBeneficios.map((b) => b.partner)).size
+  const [beneficios, setBeneficios] = React.useState<Beneficio[]>(demoBeneficios)
+  const [loading, setLoading] = React.useState(!isDemoMode)
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<Beneficio[]>("/api/v1/marketplace/benefits")
+        if (result?.length) setBeneficios(result)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
+
+  const totalRedenciones = beneficios.reduce((s, b) => s + b.redenciones, 0)
+  const activos = beneficios.filter((b) => b.status === "activo").length
+  const partners = new Set(beneficios.map((b) => b.partner)).size
 
   return (
     <div className="space-y-6">
@@ -34,14 +53,14 @@ export default function MarketplacePage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4 text-center"><Package className="size-5 mx-auto text-muted-foreground mb-1" /><p className="text-2xl font-bold">{demoBeneficios.length}</p><p className="text-xs text-muted-foreground">Beneficios</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><Package className="size-5 mx-auto text-muted-foreground mb-1" /><p className="text-2xl font-bold">{beneficios.length}</p><p className="text-xs text-muted-foreground">Beneficios</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Store className="size-5 mx-auto text-blue-500 mb-1" /><p className="text-2xl font-bold">{partners}</p><p className="text-xs text-muted-foreground">Partners</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Users className="size-5 mx-auto text-sayo-green mb-1" /><p className="text-2xl font-bold text-sayo-green">{totalRedenciones.toLocaleString()}</p><p className="text-xs text-muted-foreground">Redenciones</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Star className="size-5 mx-auto text-sayo-orange mb-1" /><p className="text-2xl font-bold text-sayo-orange">{activos}</p><p className="text-xs text-muted-foreground">Activos</p></CardContent></Card>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {demoBeneficios.map((b) => (
+        {beneficios.map((b) => (
           <Card key={b.id} className={b.status === "agotado" ? "opacity-60" : ""}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-2">

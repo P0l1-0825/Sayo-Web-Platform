@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog"
 import { FileText, Copy, Eye, Plus, Search, Bell, Mail, MessageSquare, Smartphone } from "lucide-react"
 import { toast } from "sonner"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 interface Template {
   id: string
@@ -61,12 +63,30 @@ export default function PlantillasPage() {
   const [selectedTemplate, setSelectedTemplate] = React.useState<Template | null>(null)
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [newOpen, setNewOpen] = React.useState(false)
+  const [loading, setLoading] = React.useState(!isDemoMode)
   const [newForm, setNewForm] = React.useState({
     name: "",
     event: "",
     channel: "push",
     content: "",
   })
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<Template[]>("/api/v1/marketing/templates")
+        if (result?.length) setTemplates(result)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
 
   const filteredTemplates = templates.filter((t) => {
     const matchesSearch = searchTerm === "" ||
@@ -92,7 +112,7 @@ export default function PlantillasPage() {
     toast.success("Plantilla duplicada", { description: `${dup.id} — ${dup.name}` })
   }
 
-  const handleNewTemplate = () => {
+  const handleNewTemplate = async () => {
     if (!newForm.name || !newForm.content) {
       toast.error("Completa nombre y contenido")
       return
@@ -106,6 +126,20 @@ export default function PlantillasPage() {
       lastUsed: "—",
       usageCount: 0,
     }
+
+    if (!isDemoMode) {
+      try {
+        await api.post("/api/v1/marketing/templates", {
+          name: newForm.name,
+          event: newForm.event || "Manual",
+          channel: newForm.channel,
+          content: newForm.content,
+        })
+      } catch {
+        // optimistic UI — add locally regardless
+      }
+    }
+
     setTemplates([newTpl, ...templates])
     setNewOpen(false)
     setNewForm({ name: "", event: "", channel: "push", content: "" })

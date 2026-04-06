@@ -4,8 +4,9 @@ import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Key, ShieldAlert, RotateCcw, Clock, CheckCircle, AlertTriangle } from "lucide-react"
+import { Key, ShieldAlert, RotateCcw, CheckCircle, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
+import { api, isDemoMode } from "@/lib/api-client"
 
 interface Secret {
   id: string; nombre: string; tipo: "API Key" | "OAuth" | "DB Credential" | "JWT Secret" | "Webhook"; servicio: string; entorno: "produccion" | "staging" | "desarrollo"; ultimaRotacion: string; expira: string; status: "activo" | "por-rotar" | "expirado" | "revocado"
@@ -22,8 +23,34 @@ const demoSecrets: Secret[] = [
   { id: "SEC-008", nombre: "STRIPE_TEST_KEY", tipo: "API Key", servicio: "Stripe Payments", entorno: "staging", ultimaRotacion: "2025-09-01", expira: "2026-03-01", status: "expirado" },
 ]
 
+function SkeletonRow() {
+  return (
+    <tr className="border-b">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <td key={i} className="py-2 pr-4">
+          <div className="h-3 bg-muted rounded animate-pulse w-16" />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
 export default function SecretsPage() {
-  const [secrets] = React.useState(demoSecrets)
+  const [secrets, setSecrets] = React.useState<Secret[]>(demoSecrets)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      if (isDemoMode) { setLoading(false); return }
+      try {
+        const result = await api.get<Secret[]>("/api/v1/compliance/security/secrets")
+        if (Array.isArray(result)) setSecrets(result)
+      } catch { /* keep demo data */ }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [])
+
   const activos = secrets.filter((s) => s.status === "activo").length
   const porRotar = secrets.filter((s) => s.status === "por-rotar").length
   const expirados = secrets.filter((s) => s.status === "expirado").length
@@ -48,18 +75,23 @@ export default function SecretsPage() {
             <thead><tr className="border-b text-left text-xs text-muted-foreground">
               <th className="pb-2">Nombre</th><th className="pb-2">Tipo</th><th className="pb-2">Servicio</th><th className="pb-2">Entorno</th><th className="pb-2">Última Rotación</th><th className="pb-2">Expira</th><th className="pb-2">Estado</th><th className="pb-2"></th>
             </tr></thead>
-            <tbody>{secrets.map((s) => (
-              <tr key={s.id} className="border-b last:border-0 hover:bg-muted/50">
-                <td className="py-2 font-mono text-xs">{s.nombre}</td>
-                <td className="py-2"><Badge variant="outline" className="text-[10px]">{s.tipo}</Badge></td>
-                <td className="py-2 text-xs">{s.servicio}</td>
-                <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${s.entorno === "produccion" ? "bg-red-50 text-red-700" : s.entorno === "staging" ? "bg-yellow-50 text-yellow-700" : "bg-green-50 text-green-700"}`}>{s.entorno}</span></td>
-                <td className="py-2 text-xs tabular-nums">{s.ultimaRotacion}</td>
-                <td className="py-2 text-xs tabular-nums">{s.expira}</td>
-                <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${s.status === "activo" ? "bg-green-100 text-green-700" : s.status === "por-rotar" ? "bg-yellow-100 text-yellow-700" : s.status === "expirado" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}`}>{s.status}</span></td>
-                <td className="py-2"><Button variant="ghost" size="icon-xs" onClick={() => toast.success(`Rotación iniciada para ${s.nombre}`)} title="Rotar"><RotateCcw className="size-3.5" /></Button></td>
-              </tr>
-            ))}</tbody>
+            <tbody>
+              {loading
+                ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+                : secrets.map((s) => (
+                  <tr key={s.id} className="border-b last:border-0 hover:bg-muted/50">
+                    <td className="py-2 font-mono text-xs">{s.nombre}</td>
+                    <td className="py-2"><Badge variant="outline" className="text-[10px]">{s.tipo}</Badge></td>
+                    <td className="py-2 text-xs">{s.servicio}</td>
+                    <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${s.entorno === "produccion" ? "bg-red-50 text-red-700" : s.entorno === "staging" ? "bg-yellow-50 text-yellow-700" : "bg-green-50 text-green-700"}`}>{s.entorno}</span></td>
+                    <td className="py-2 text-xs tabular-nums">{s.ultimaRotacion}</td>
+                    <td className="py-2 text-xs tabular-nums">{s.expira}</td>
+                    <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${s.status === "activo" ? "bg-green-100 text-green-700" : s.status === "por-rotar" ? "bg-yellow-100 text-yellow-700" : s.status === "expirado" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}`}>{s.status}</span></td>
+                    <td className="py-2"><Button variant="ghost" size="icon-xs" onClick={() => toast.success(`Rotación iniciada para ${s.nombre}`)} title="Rotar"><RotateCcw className="size-3.5" /></Button></td>
+                  </tr>
+                ))
+              }
+            </tbody>
           </table>
         </div>
       </CardContent></Card>

@@ -2,15 +2,16 @@
 
 import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Briefcase, TrendingUp, AlertTriangle, PieChart, DollarSign, Building2, Shield } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 const fmt = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n)
 
 interface SectorData { sector: string; monto: number; porcentaje: number; creditos: number; morosidad: number }
 interface RiesgoData { calificacion: string; monto: number; porcentaje: number; creditos: number; color: string }
 
-const sectorData: SectorData[] = [
+const demoSectorData: SectorData[] = [
   { sector: "Comercio", monto: 185000000, porcentaje: 32, creditos: 245, morosidad: 2.8 },
   { sector: "Manufactura", monto: 128000000, porcentaje: 22, creditos: 89, morosidad: 3.5 },
   { sector: "Servicios", monto: 98000000, porcentaje: 17, creditos: 312, morosidad: 1.9 },
@@ -19,7 +20,7 @@ const sectorData: SectorData[] = [
   { sector: "Tecnología", monto: 40000000, porcentaje: 7, creditos: 120, morosidad: 1.5 },
 ]
 
-const riesgoData: RiesgoData[] = [
+const demoRiesgoData: RiesgoData[] = [
   { calificacion: "A1 — Mínimo", monto: 280000000, porcentaje: 48, creditos: 420, color: "bg-green-100 text-green-700" },
   { calificacion: "A2 — Bajo", monto: 145000000, porcentaje: 25, creditos: 210, color: "bg-green-50 text-green-600" },
   { calificacion: "B — Moderado", monto: 87000000, porcentaje: 15, creditos: 125, color: "bg-yellow-100 text-yellow-700" },
@@ -28,9 +29,37 @@ const riesgoData: RiesgoData[] = [
 ]
 
 export default function CarteraPage() {
+  const [sectorData, setSectorData] = React.useState<SectorData[]>(demoSectorData)
+  const [riesgoData, setRiesgoData] = React.useState<RiesgoData[]>(demoRiesgoData)
+  const [loading, setLoading] = React.useState(!isDemoMode)
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<{
+          sector_data?: SectorData[]
+          riesgo_data?: RiesgoData[]
+        }>("/api/v1/analytics/stats/portfolio")
+        if (result.sector_data?.length) setSectorData(result.sector_data)
+        if (result.riesgo_data?.length) setRiesgoData(result.riesgo_data)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
+
   const totalCartera = sectorData.reduce((s, d) => s + d.monto, 0)
   const totalCreditos = sectorData.reduce((s, d) => s + d.creditos, 0)
   const morosidadPromedio = (sectorData.reduce((s, d) => s + d.morosidad * d.porcentaje, 0) / 100).toFixed(1)
+  const carteraABPct = riesgoData
+    .filter((r) => r.calificacion.startsWith("A"))
+    .reduce((s, r) => s + r.porcentaje, 0)
 
   return (
     <div className="space-y-6">
@@ -43,7 +72,7 @@ export default function CarteraPage() {
         <Card><CardContent className="p-4 text-center"><Briefcase className="size-5 mx-auto text-muted-foreground mb-1" /><p className="text-2xl font-bold">{fmt(totalCartera)}</p><p className="text-xs text-muted-foreground">Cartera Total</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Building2 className="size-5 mx-auto text-blue-500 mb-1" /><p className="text-2xl font-bold">{totalCreditos.toLocaleString()}</p><p className="text-xs text-muted-foreground">Créditos Vigentes</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><AlertTriangle className="size-5 mx-auto text-sayo-orange mb-1" /><p className="text-2xl font-bold text-sayo-orange">{morosidadPromedio}%</p><p className="text-xs text-muted-foreground">Morosidad Prom.</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><Shield className="size-5 mx-auto text-sayo-green mb-1" /><p className="text-2xl font-bold text-sayo-green">73%</p><p className="text-xs text-muted-foreground">Cartera A1+A2</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><Shield className="size-5 mx-auto text-sayo-green mb-1" /><p className="text-2xl font-bold text-sayo-green">{carteraABPct}%</p><p className="text-xs text-muted-foreground">Cartera A1+A2</p></CardContent></Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

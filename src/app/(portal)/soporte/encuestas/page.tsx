@@ -3,7 +3,8 @@
 import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { SmilePlus, TrendingUp, TrendingDown, BarChart3, Star, ThumbsUp, ThumbsDown } from "lucide-react"
+import { SmilePlus, BarChart3, Star, ThumbsUp, ThumbsDown } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
 
 interface Encuesta {
   id: string; tipo: "CSAT" | "NPS"; cliente: string; puntuacion: number; comentario: string; fecha: string; canal: string; sentimiento: "positivo" | "neutral" | "negativo"
@@ -20,15 +21,50 @@ const demoEncuestas: Encuesta[] = [
   { id: "ENC-008", tipo: "NPS", cliente: "Diana Flores", puntuacion: 8, comentario: "Muy buena experiencia en general", fecha: "2026-03-10", canal: "Chat", sentimiento: "positivo" },
 ]
 
+function EncuestaSkeleton() {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg border animate-pulse">
+      <div className="size-8 rounded-full bg-muted shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-24 bg-muted rounded" />
+          <div className="h-3 w-12 bg-muted rounded" />
+          <div className="h-3 w-12 bg-muted rounded" />
+        </div>
+        <div className="h-3 w-3/4 bg-muted rounded" />
+      </div>
+    </div>
+  )
+}
+
 export default function EncuestasPage() {
-  const csatScores = demoEncuestas.filter((e) => e.tipo === "CSAT").map((e) => e.puntuacion)
-  const npsScores = demoEncuestas.filter((e) => e.tipo === "NPS").map((e) => e.puntuacion)
-  const avgCsat = (csatScores.reduce((a, b) => a + b, 0) / csatScores.length).toFixed(1)
+  const [encuestas, setEncuestas] = React.useState<Encuesta[]>(demoEncuestas)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      if (isDemoMode) { setLoading(false); return }
+      try {
+        const result = await api.get<Encuesta[]>("/api/v1/support/surveys")
+        if (Array.isArray(result)) setEncuestas(result)
+      } catch { /* keep demo data */ }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [])
+
+  const csatScores = encuestas.filter((e) => e.tipo === "CSAT").map((e) => e.puntuacion)
+  const npsScores = encuestas.filter((e) => e.tipo === "NPS").map((e) => e.puntuacion)
+  const avgCsat = csatScores.length > 0
+    ? (csatScores.reduce((a, b) => a + b, 0) / csatScores.length).toFixed(1)
+    : "0.0"
   const promoters = npsScores.filter((s) => s >= 9).length
   const detractors = npsScores.filter((s) => s <= 6).length
-  const nps = Math.round(((promoters - detractors) / npsScores.length) * 100)
-  const positivos = demoEncuestas.filter((e) => e.sentimiento === "positivo").length
-  const negativos = demoEncuestas.filter((e) => e.sentimiento === "negativo").length
+  const nps = npsScores.length > 0
+    ? Math.round(((promoters - detractors) / npsScores.length) * 100)
+    : 0
+  const positivos = encuestas.filter((e) => e.sentimiento === "positivo").length
+  const negativos = encuestas.filter((e) => e.sentimiento === "negativo").length
 
   return (
     <div className="space-y-6">
@@ -47,22 +83,25 @@ export default function EncuestasPage() {
       <Card><CardContent className="p-4">
         <h2 className="text-sm font-semibold mb-3">Respuestas Recientes</h2>
         <div className="space-y-3">
-          {demoEncuestas.map((e) => (
-            <div key={e.id} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50">
-              <div className={`flex items-center justify-center size-8 rounded-full text-sm font-bold ${e.sentimiento === "positivo" ? "bg-green-100 text-green-700" : e.sentimiento === "negativo" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}`}>
-                {e.tipo === "CSAT" ? e.puntuacion : e.puntuacion}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm font-medium">{e.cliente}</p>
-                  <Badge variant="outline" className="text-[9px]">{e.tipo}</Badge>
-                  <Badge variant="outline" className="text-[9px]">{e.canal}</Badge>
-                  <span className="text-[10px] text-muted-foreground ml-auto">{e.fecha}</span>
+          {loading
+            ? Array.from({ length: 5 }).map((_, i) => <EncuestaSkeleton key={i} />)
+            : encuestas.map((e) => (
+              <div key={e.id} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50">
+                <div className={`flex items-center justify-center size-8 rounded-full text-sm font-bold ${e.sentimiento === "positivo" ? "bg-green-100 text-green-700" : e.sentimiento === "negativo" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}`}>
+                  {e.puntuacion}
                 </div>
-                <p className="text-xs text-muted-foreground">{e.comentario}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-medium">{e.cliente}</p>
+                    <Badge variant="outline" className="text-[9px]">{e.tipo}</Badge>
+                    <Badge variant="outline" className="text-[9px]">{e.canal}</Badge>
+                    <span className="text-[10px] text-muted-foreground ml-auto">{e.fecha}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{e.comentario}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          }
         </div>
       </CardContent></Card>
     </div>

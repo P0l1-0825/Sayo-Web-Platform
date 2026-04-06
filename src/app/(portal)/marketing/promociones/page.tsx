@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Gift, Tag, Percent, Users, Eye, Calendar } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 interface Promocion {
   id: string; nombre: string; tipo: "codigo" | "tasa-preferencial" | "cashback" | "sin-comision"; codigo: string; descuento: string; usos: number; limite: number; fechaInicio: string; fechaFin: string; status: "activa" | "expirada" | "programada"; segmento: string
@@ -20,12 +22,31 @@ const demoPromos: Promocion[] = [
 ]
 
 export default function PromocionesPage() {
-  const [promos] = React.useState(demoPromos)
+  const [promos, setPromos] = React.useState<Promocion[]>(demoPromos)
   const [selected, setSelected] = React.useState<Promocion | null>(null)
   const [open, setOpen] = React.useState(false)
+  const [loading, setLoading] = React.useState(!isDemoMode)
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<Promocion[]>("/api/v1/marketing/promotions")
+        if (result?.length) setPromos(result)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
 
   const activas = promos.filter((p) => p.status === "activa").length
   const totalUsos = promos.reduce((s, p) => s + p.usos, 0)
+  const tiposUnicos = new Set(promos.map((p) => p.tipo)).size
 
   return (
     <div className="space-y-6">
@@ -38,7 +59,7 @@ export default function PromocionesPage() {
         <Card><CardContent className="p-4 text-center"><Gift className="size-5 mx-auto text-muted-foreground mb-1" /><p className="text-2xl font-bold">{promos.length}</p><p className="text-xs text-muted-foreground">Promociones</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Tag className="size-5 mx-auto text-sayo-green mb-1" /><p className="text-2xl font-bold text-sayo-green">{activas}</p><p className="text-xs text-muted-foreground">Activas</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Users className="size-5 mx-auto text-blue-500 mb-1" /><p className="text-2xl font-bold">{totalUsos.toLocaleString()}</p><p className="text-xs text-muted-foreground">Usos Totales</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><Percent className="size-5 mx-auto text-sayo-orange mb-1" /><p className="text-2xl font-bold text-sayo-orange">4</p><p className="text-xs text-muted-foreground">Tipos de Promo</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><Percent className="size-5 mx-auto text-sayo-orange mb-1" /><p className="text-2xl font-bold text-sayo-orange">{tiposUnicos}</p><p className="text-xs text-muted-foreground">Tipos de Promo</p></CardContent></Card>
       </div>
 
       <Card><CardContent className="p-4">

@@ -2,15 +2,25 @@
 
 import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { BarChart3, TrendingUp, TrendingDown, Users, DollarSign, ArrowRight, Repeat } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 const fmt = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n)
 
 interface FunnelStep { etapa: string; total: number; conversion: number }
 interface CohorteData { mes: string; adquiridos: number; m1: number; m3: number; m6: number; m12: number }
 
-const funnelData: FunnelStep[] = [
+interface AnalyticsData {
+  ltv?: number
+  cac?: number
+  churn_rate?: number
+  retention_rate?: number
+  funnel?: FunnelStep[]
+  cohortes?: CohorteData[]
+}
+
+const demoFunnelData: FunnelStep[] = [
   { etapa: "Visitantes Web", total: 45000, conversion: 100 },
   { etapa: "Registro", total: 5400, conversion: 12 },
   { etapa: "Solicitud Iniciada", total: 2700, conversion: 50 },
@@ -19,7 +29,7 @@ const funnelData: FunnelStep[] = [
   { etapa: "Desembolsado", total: 875, conversion: 90 },
 ]
 
-const cohorteData: CohorteData[] = [
+const demoCohorteData: CohorteData[] = [
   { mes: "Sep 2025", adquiridos: 120, m1: 95, m3: 82, m6: 70, m12: 58 },
   { mes: "Oct 2025", adquiridos: 135, m1: 108, m3: 90, m6: 72, m12: 0 },
   { mes: "Nov 2025", adquiridos: 142, m1: 118, m3: 95, m6: 0, m12: 0 },
@@ -29,10 +39,35 @@ const cohorteData: CohorteData[] = [
 ]
 
 export default function AnalyticsPage() {
-  const ltv = 285000
-  const cac = 4200
-  const churnRate = 3.2
-  const retentionRate = 96.8
+  const [ltv, setLtv] = React.useState(285000)
+  const [cac, setCac] = React.useState(4200)
+  const [churnRate, setChurnRate] = React.useState(3.2)
+  const [retentionRate, setRetentionRate] = React.useState(96.8)
+  const [funnelData, setFunnelData] = React.useState<FunnelStep[]>(demoFunnelData)
+  const [cohorteData, setCohorteData] = React.useState<CohorteData[]>(demoCohorteData)
+  const [loading, setLoading] = React.useState(!isDemoMode)
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<AnalyticsData>("/api/v1/analytics/stats")
+        if (result.ltv != null) setLtv(result.ltv)
+        if (result.cac != null) setCac(result.cac)
+        if (result.churn_rate != null) setChurnRate(result.churn_rate)
+        if (result.retention_rate != null) setRetentionRate(result.retention_rate)
+        if (result.funnel?.length) setFunnelData(result.funnel)
+        if (result.cohortes?.length) setCohorteData(result.cohortes)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
 
   return (
     <div className="space-y-6">

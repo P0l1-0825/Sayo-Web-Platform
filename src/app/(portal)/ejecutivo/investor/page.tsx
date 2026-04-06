@@ -6,14 +6,16 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Users, DollarSign, TrendingUp, FileText, Download, Building2, PieChart } from "lucide-react"
 import { toast } from "sonner"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 const fmt = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n)
 const fmtUsd = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n)
 
 interface Investor { nombre: string; tipo: string; participacion: number; montoInvertido: number; ronda: string }
-interface KPI { metrica: string; valor: string; cambio: string; positivo: boolean }
+interface InvestorKPI { metrica: string; valor: string; cambio: string; positivo: boolean }
 
-const capTable: Investor[] = [
+const demoCapTable: Investor[] = [
   { nombre: "Founders", tipo: "Common", participacion: 45.0, montoInvertido: 0, ronda: "Fundación" },
   { nombre: "ALLVP", tipo: "Series A Preferred", participacion: 18.5, montoInvertido: 85000000, ronda: "Serie A" },
   { nombre: "QED Investors", tipo: "Series B Preferred", participacion: 15.0, montoInvertido: 180000000, ronda: "Serie B" },
@@ -22,7 +24,7 @@ const capTable: Investor[] = [
   { nombre: "ESOP", tipo: "Options Pool", participacion: 8.0, montoInvertido: 0, ronda: "—" },
 ]
 
-const keyMetrics: KPI[] = [
+const demoKeyMetrics: InvestorKPI[] = [
   { metrica: "ARR", valor: fmtUsd(8500000), cambio: "+42%", positivo: true },
   { metrica: "MRR", valor: fmtUsd(708000), cambio: "+38%", positivo: true },
   { metrica: "Burn Rate", valor: fmtUsd(320000), cambio: "-12%", positivo: true },
@@ -31,9 +33,38 @@ const keyMetrics: KPI[] = [
   { metrica: "Gross Margin", valor: "72%", cambio: "+2pp", positivo: true },
 ]
 
+const demoValuacion = 850000000
+
 export default function InvestorPage() {
+  const [capTable, setCapTable] = React.useState<Investor[]>(demoCapTable)
+  const [keyMetrics, setKeyMetrics] = React.useState<InvestorKPI[]>(demoKeyMetrics)
+  const [valuacion, setValuacion] = React.useState(demoValuacion)
+  const [loading, setLoading] = React.useState(!isDemoMode)
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<{
+          cap_table?: Investor[]
+          key_metrics?: InvestorKPI[]
+          valuacion?: number
+        }>("/api/v1/analytics/stats/investor")
+        if (result.cap_table?.length) setCapTable(result.cap_table)
+        if (result.key_metrics?.length) setKeyMetrics(result.key_metrics)
+        if (result.valuacion) setValuacion(result.valuacion)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
+
   const totalInvertido = capTable.reduce((s, i) => s + i.montoInvertido, 0)
-  const valuacion = 850000000
 
   return (
     <div className="space-y-6">

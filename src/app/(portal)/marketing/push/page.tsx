@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Send, Bell, Mail, MessageSquare, Smartphone, Eye, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
+import { api, isDemoMode } from "@/lib/api-client"
 
 interface Notification {
   id: string
@@ -59,6 +60,19 @@ export default function PushPage() {
     schedule: "Ahora",
   })
 
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<Notification[]>("/api/v1/marketing/notifications")
+        if (result?.length) setNotifications(result)
+      } catch {
+        // fallback to demo data already set
+      }
+    }
+    load()
+  }, [])
+
   const handleView = (notif: Notification) => {
     setSelectedNotif(notif)
     setDetailOpen(true)
@@ -72,7 +86,7 @@ export default function PushPage() {
     setConfirmOpen(true)
   }
 
-  const confirmSend = () => {
+  const confirmSend = async () => {
     const estimatedAudience = form.segment === "Todos" ? 45000 : form.segment === "Activos 30d" ? 12000 : form.segment === "Con crédito" ? 8500 : form.segment === "Sin actividad" ? 3200 : form.segment === "Score > 700" ? 5600 : 2000
     const newNotif: Notification = {
       id: `NOT-${String(notifications.length + 1).padStart(3, "0")}`,
@@ -84,6 +98,21 @@ export default function PushPage() {
       sentAt: new Date().toISOString(),
       status: form.schedule === "Ahora" ? "enviada" : "programada",
     }
+
+    if (!isDemoMode) {
+      try {
+        await api.post("/api/v1/marketing/notifications", {
+          title: form.title,
+          message: form.message,
+          channel: form.channel,
+          segment: form.segment,
+          schedule: form.schedule,
+        })
+      } catch {
+        // optimistic UI — add locally regardless
+      }
+    }
+
     setNotifications([newNotif, ...notifications])
     setConfirmOpen(false)
     setForm({ title: "", message: "", channel: "push", segment: "Todos", schedule: "Ahora" })

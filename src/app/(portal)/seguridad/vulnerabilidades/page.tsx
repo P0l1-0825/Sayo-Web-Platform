@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { ShieldAlert, Bug, AlertTriangle, CheckCircle, Clock, Eye } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
 
 interface Vulnerabilidad {
   id: string; titulo: string; fuente: "Snyk" | "SonarQube" | "Dependabot"; severidad: "critica" | "alta" | "media" | "baja"; cvss: number; componente: string; status: "abierta" | "en-remediacion" | "resuelta"; fechaDeteccion: string; descripcion: string; remediacion: string
@@ -20,10 +21,35 @@ const demoVulns: Vulnerabilidad[] = [
   { id: "VLN-006", titulo: "CORS misconfiguration", fuente: "Snyk", severidad: "media", cvss: 5.0, componente: "sayo-api", status: "en-remediacion", fechaDeteccion: "2026-03-08", descripcion: "Allow-Origin demasiado permisivo", remediacion: "Restringir a dominios permitidos" },
 ]
 
+function SkeletonRow() {
+  return (
+    <tr className="border-b">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <td key={i} className="py-2 pr-4">
+          <div className="h-3 bg-muted rounded animate-pulse w-16" />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
 export default function VulnerabilidadesPage() {
-  const [vulns] = React.useState(demoVulns)
+  const [vulns, setVulns] = React.useState<Vulnerabilidad[]>(demoVulns)
+  const [loading, setLoading] = React.useState(true)
   const [selected, setSelected] = React.useState<Vulnerabilidad | null>(null)
   const [open, setOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    async function load() {
+      if (isDemoMode) { setLoading(false); return }
+      try {
+        const result = await api.get<Vulnerabilidad[]>("/api/v1/compliance/security/vulnerabilities")
+        if (Array.isArray(result)) setVulns(result)
+      } catch { /* keep demo data */ }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [])
 
   const criticas = vulns.filter((v) => v.severidad === "critica" && v.status !== "resuelta").length
   const abiertas = vulns.filter((v) => v.status === "abierta").length
@@ -49,18 +75,23 @@ export default function VulnerabilidadesPage() {
             <thead><tr className="border-b text-left text-xs text-muted-foreground">
               <th className="pb-2">ID</th><th className="pb-2">Vulnerabilidad</th><th className="pb-2">Fuente</th><th className="pb-2">CVSS</th><th className="pb-2">Severidad</th><th className="pb-2">Componente</th><th className="pb-2">Estado</th><th className="pb-2"></th>
             </tr></thead>
-            <tbody>{vulns.map((v) => (
-              <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 cursor-pointer" onClick={() => { setSelected(v); setOpen(true) }}>
-                <td className="py-2 font-mono text-xs">{v.id}</td>
-                <td className="py-2 font-medium max-w-[250px] truncate">{v.titulo}</td>
-                <td className="py-2"><Badge variant="outline" className="text-[10px]">{v.fuente}</Badge></td>
-                <td className="py-2 tabular-nums"><span className={`font-bold ${v.cvss >= 9 ? "text-sayo-red" : v.cvss >= 7 ? "text-sayo-orange" : "text-yellow-600"}`}>{v.cvss}</span></td>
-                <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${v.severidad === "critica" ? "bg-red-100 text-red-700" : v.severidad === "alta" ? "bg-orange-100 text-orange-700" : v.severidad === "media" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{v.severidad}</span></td>
-                <td className="py-2 font-mono text-xs">{v.componente}</td>
-                <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${v.status === "resuelta" ? "bg-green-100 text-green-700" : v.status === "en-remediacion" ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700"}`}>{v.status}</span></td>
-                <td className="py-2"><Button variant="ghost" size="icon-xs"><Eye className="size-3.5" /></Button></td>
-              </tr>
-            ))}</tbody>
+            <tbody>
+              {loading
+                ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
+                : vulns.map((v) => (
+                  <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 cursor-pointer" onClick={() => { setSelected(v); setOpen(true) }}>
+                    <td className="py-2 font-mono text-xs">{v.id}</td>
+                    <td className="py-2 font-medium max-w-[250px] truncate">{v.titulo}</td>
+                    <td className="py-2"><Badge variant="outline" className="text-[10px]">{v.fuente}</Badge></td>
+                    <td className="py-2 tabular-nums"><span className={`font-bold ${v.cvss >= 9 ? "text-sayo-red" : v.cvss >= 7 ? "text-sayo-orange" : "text-yellow-600"}`}>{v.cvss}</span></td>
+                    <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${v.severidad === "critica" ? "bg-red-100 text-red-700" : v.severidad === "alta" ? "bg-orange-100 text-orange-700" : v.severidad === "media" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{v.severidad}</span></td>
+                    <td className="py-2 font-mono text-xs">{v.componente}</td>
+                    <td className="py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${v.status === "resuelta" ? "bg-green-100 text-green-700" : v.status === "en-remediacion" ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700"}`}>{v.status}</span></td>
+                    <td className="py-2"><Button variant="ghost" size="icon-xs"><Eye className="size-3.5" /></Button></td>
+                  </tr>
+                ))
+              }
+            </tbody>
           </table>
         </div>
       </CardContent></Card>

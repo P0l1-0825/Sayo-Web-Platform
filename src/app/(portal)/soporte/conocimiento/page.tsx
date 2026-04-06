@@ -14,8 +14,9 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog"
-import { Search, BookOpen, FileText, Eye, Plus, ThumbsUp, BarChart3, ArrowLeft } from "lucide-react"
+import { Search, BookOpen, FileText, Plus, ThumbsUp, BarChart3, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
+import { api, isDemoMode } from "@/lib/api-client"
 
 interface Article {
   id: string
@@ -45,8 +46,27 @@ const initialArticles: Article[] = [
   { id: "ART-006", title: "Cambiar mi NIP de acceso", category: "Seguridad", views: 2100, helpful: 93, updatedAt: "2024-03-03", content: "Para cambiar tu NIP: 1) Ve a Perfil > Seguridad, 2) Selecciona 'Cambiar NIP', 3) Ingresa tu NIP actual, 4) Ingresa el nuevo NIP (6 dígitos), 5) Confirma. Si olvidaste tu NIP, usa la opción 'Olvidé mi NIP' para recuperarlo via SMS." },
 ]
 
+function ArticleSkeleton() {
+  return (
+    <Card>
+      <CardContent className="p-4 flex items-center gap-3 animate-pulse">
+        <div className="size-4 bg-muted rounded shrink-0" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-4 w-56 bg-muted rounded" />
+          <div className="h-3 w-40 bg-muted rounded" />
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="h-3 w-12 bg-muted rounded" />
+          <div className="h-3 w-10 bg-muted rounded" />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function ConocimientoPage() {
   const [articles, setArticles] = React.useState<Article[]>(initialArticles)
+  const [loading, setLoading] = React.useState(true)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = React.useState<Article | null>(null)
@@ -58,6 +78,18 @@ export default function ConocimientoPage() {
     content: "",
   })
 
+  React.useEffect(() => {
+    async function load() {
+      if (isDemoMode) { setLoading(false); return }
+      try {
+        const result = await api.get<Article[]>("/api/v1/support/knowledge")
+        if (Array.isArray(result)) setArticles(result)
+      } catch { /* keep demo data */ }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [])
+
   const filteredArticles = articles.filter((a) => {
     const matchesSearch = searchTerm === "" ||
       a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -67,7 +99,6 @@ export default function ConocimientoPage() {
   })
 
   const handleViewArticle = (article: Article) => {
-    // Increment views
     setArticles((prev) =>
       prev.map((a) => (a.id === article.id ? { ...a, views: a.views + 1 } : a))
     )
@@ -163,30 +194,33 @@ export default function ConocimientoPage() {
           {selectedCategory ? `Artículos: ${selectedCategory}` : searchTerm ? "Resultados de búsqueda" : "Artículos Populares"}
         </h2>
         <div className="space-y-2">
-          {filteredArticles.map((a) => (
-            <Card key={a.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleViewArticle(a)}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <FileText className="size-4 text-muted-foreground shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{a.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {a.category} • {a.views.toLocaleString()} vistas • {a.helpful}% útil • Act: {a.updatedAt}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <BarChart3 className="size-3" />
-                    {a.views.toLocaleString()}
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => <ArticleSkeleton key={i} />)
+            : filteredArticles.map((a) => (
+              <Card key={a.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleViewArticle(a)}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <FileText className="size-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{a.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {a.category} • {a.views.toLocaleString()} vistas • {a.helpful}% útil • Act: {a.updatedAt}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-sayo-green">
-                    <ThumbsUp className="size-3" />
-                    {a.helpful}%
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <BarChart3 className="size-3" />
+                      {a.views.toLocaleString()}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-sayo-green">
+                      <ThumbsUp className="size-3" />
+                      {a.helpful}%
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {filteredArticles.length === 0 && (
+                </CardContent>
+              </Card>
+            ))
+          }
+          {!loading && filteredArticles.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <BookOpen className="size-8 mx-auto mb-2" />
               <p className="text-sm">No se encontraron artículos</p>

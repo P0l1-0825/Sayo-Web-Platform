@@ -3,8 +3,9 @@
 import * as React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Workflow, Zap, Mail, MessageCircle, Play, Pause, CheckCircle, Clock } from "lucide-react"
+import { Workflow, Zap, Mail, MessageCircle, Play, Pause, CheckCircle } from "lucide-react"
+import { api, isDemoMode } from "@/lib/api-client"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
 interface Automatizacion {
   id: string; nombre: string; trigger: string; canal: string; pasos: number; contactosActivos: number; enviados: number; abiertos: number; conversiones: number; status: "activa" | "pausada" | "borrador"; ultimaEjecucion: string
@@ -19,9 +20,29 @@ const demoAutos: Automatizacion[] = [
 ]
 
 export default function AutomatizacionesPage() {
-  const activas = demoAutos.filter((a) => a.status === "activa").length
-  const totalEnviados = demoAutos.reduce((s, a) => s + a.enviados, 0)
-  const totalConversiones = demoAutos.reduce((s, a) => s + a.conversiones, 0)
+  const [automations, setAutomations] = React.useState<Automatizacion[]>(demoAutos)
+  const [loading, setLoading] = React.useState(!isDemoMode)
+
+  React.useEffect(() => {
+    if (isDemoMode) return
+    async function load() {
+      try {
+        const result = await api.get<Automatizacion[]>("/api/v1/marketing/automations")
+        if (result?.length) setAutomations(result)
+      } catch {
+        // fallback to demo data already set
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return <DashboardSkeleton variant="stats-and-table" />
+
+  const activas = automations.filter((a) => a.status === "activa").length
+  const totalEnviados = automations.reduce((s, a) => s + a.enviados, 0)
+  const totalConversiones = automations.reduce((s, a) => s + a.conversiones, 0)
 
   return (
     <div className="space-y-6">
@@ -31,7 +52,7 @@ export default function AutomatizacionesPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4 text-center"><Workflow className="size-5 mx-auto text-muted-foreground mb-1" /><p className="text-2xl font-bold">{demoAutos.length}</p><p className="text-xs text-muted-foreground">Automatizaciones</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><Workflow className="size-5 mx-auto text-muted-foreground mb-1" /><p className="text-2xl font-bold">{automations.length}</p><p className="text-xs text-muted-foreground">Automatizaciones</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Zap className="size-5 mx-auto text-sayo-green mb-1" /><p className="text-2xl font-bold text-sayo-green">{activas}</p><p className="text-xs text-muted-foreground">Activas</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><Mail className="size-5 mx-auto text-blue-500 mb-1" /><p className="text-2xl font-bold">{totalEnviados.toLocaleString()}</p><p className="text-xs text-muted-foreground">Mensajes Enviados</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><CheckCircle className="size-5 mx-auto text-sayo-orange mb-1" /><p className="text-2xl font-bold text-sayo-orange">{totalConversiones.toLocaleString()}</p><p className="text-xs text-muted-foreground">Conversiones</p></CardContent></Card>
@@ -43,7 +64,7 @@ export default function AutomatizacionesPage() {
             <thead><tr className="border-b text-left text-xs text-muted-foreground">
               <th className="pb-2">Nombre</th><th className="pb-2">Trigger</th><th className="pb-2">Canal</th><th className="pb-2">Pasos</th><th className="pb-2">Activos</th><th className="pb-2">Enviados</th><th className="pb-2">Conv.</th><th className="pb-2">Estado</th><th className="pb-2">Última Ejec.</th>
             </tr></thead>
-            <tbody>{demoAutos.map((a) => (
+            <tbody>{automations.map((a) => (
               <tr key={a.id} className="border-b last:border-0 hover:bg-muted/50">
                 <td className="py-2 font-medium">{a.nombre}</td>
                 <td className="py-2 text-xs">{a.trigger}</td>
