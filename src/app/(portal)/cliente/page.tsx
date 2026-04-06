@@ -20,7 +20,7 @@ import type { Account, TransactionRecord } from "@/lib/accounts-service"
 import { formatMoney } from "@/lib/utils"
 import {
   ArrowUpRight, ArrowDownLeft, Copy, Send, QrCode,
-  CreditCard, Eye, Clock, Check, Loader2, RefreshCw,
+  CreditCard, Eye, Clock, Check, Loader2, RefreshCw, Wallet,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -68,6 +68,7 @@ function movementLabel(type: string): string {
     treasury_dispersion:  "Dispersión Tesorería",
     fee:                  "Comisión",
     adjustment:           "Ajuste",
+    qr_payment:           "Pago QR",
   }
   return map[type] ?? type
 }
@@ -198,9 +199,10 @@ export default function ClienteDashboard() {
   const handleQuickAction = (action: string) => {
     const routes: Record<string, string> = {
       transferir:      "/cliente/transferencias",
-      pagar_qr:        "/cliente/pagos",
+      pagar_qr:        "/cliente/qr",
       pagar_servicio:  "/cliente/pagos",
-      recibir:         "/cliente/transferencias",
+      recibir:         "/cliente/qr",
+      fondear_tarjeta: "/cliente/tarjetas",
     }
     if (routes[action]) window.location.href = routes[action]
   }
@@ -230,9 +232,9 @@ export default function ClienteDashboard() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-bold">Mi Cuenta SAYO</h1>
+          <h1 className="text-xl font-bold">Wallet SAYO</h1>
           <p className="text-sm text-muted-foreground">
-            Bienvenido, {user?.fullName ?? "Usuario"}
+            {user?.fullName ?? "Usuario"} — Tu saldo virtual
           </p>
         </div>
         <Card>
@@ -253,9 +255,9 @@ export default function ClienteDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Mi Cuenta SAYO</h1>
+          <h1 className="text-xl font-bold">Wallet SAYO</h1>
           <p className="text-sm text-muted-foreground">
-            Bienvenido, {user?.fullName ?? "Usuario"}
+            {user?.fullName ?? "Usuario"} — Tu saldo virtual
           </p>
         </div>
         <Button
@@ -297,22 +299,26 @@ export default function ClienteDashboard() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
         <Button variant="outline" className="h-auto py-4 flex flex-col gap-1.5" onClick={() => handleQuickAction("transferir")}>
-          <Send className="size-5" />
+          <Send className="size-5 text-sayo-cafe" />
           <span className="text-xs">Transferir</span>
         </Button>
         <Button variant="outline" className="h-auto py-4 flex flex-col gap-1.5" onClick={() => handleQuickAction("pagar_qr")}>
-          <QrCode className="size-5" />
-          <span className="text-xs">Pagar QR</span>
-        </Button>
-        <Button variant="outline" className="h-auto py-4 flex flex-col gap-1.5" onClick={() => handleQuickAction("pagar_servicio")}>
-          <CreditCard className="size-5" />
-          <span className="text-xs">Pagar Servicio</span>
+          <QrCode className="size-5 text-purple-600" />
+          <span className="text-xs">QR Pagar</span>
         </Button>
         <Button variant="outline" className="h-auto py-4 flex flex-col gap-1.5" onClick={() => handleQuickAction("recibir")}>
-          <ArrowDownLeft className="size-5" />
-          <span className="text-xs">Recibir</span>
+          <ArrowDownLeft className="size-5 text-green-600" />
+          <span className="text-xs">QR Cobrar</span>
+        </Button>
+        <Button variant="outline" className="h-auto py-4 flex flex-col gap-1.5" onClick={() => handleQuickAction("pagar_servicio")}>
+          <CreditCard className="size-5 text-blue-600" />
+          <span className="text-xs">Pagar Servicio</span>
+        </Button>
+        <Button variant="outline" className="h-auto py-4 flex flex-col gap-1.5" onClick={() => handleQuickAction("fondear_tarjeta")}>
+          <Wallet className="size-5 text-emerald-600" />
+          <span className="text-xs">Fondear Tarjeta</span>
         </Button>
       </div>
 

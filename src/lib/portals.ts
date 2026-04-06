@@ -169,10 +169,11 @@ export const portals: PortalConfig[] = [
     role: "EXT_CLIENTE",
     description: "Banca web: saldo, transferencias, pagos y estados de cuenta",
     navItems: [
-      { label: "Dashboard", href: "/cliente", icon: "LayoutDashboard" },
-      { label: "Tarjetas", href: "/cliente/tarjetas", icon: "CreditCard" },
+      { label: "Wallet", href: "/cliente", icon: "Wallet" },
       { label: "Transferencias", href: "/cliente/transferencias", icon: "ArrowLeftRight" },
       { label: "Pagos", href: "/cliente/pagos", icon: "CreditCard" },
+      { label: "QR", href: "/cliente/qr", icon: "QrCode" },
+      { label: "Tarjetas", href: "/cliente/tarjetas", icon: "CreditCard" },
       { label: "Estados de Cuenta", href: "/cliente/estados-cuenta", icon: "FileText" },
       { label: "Perfil", href: "/cliente/perfil", icon: "UserCircle" },
     ],

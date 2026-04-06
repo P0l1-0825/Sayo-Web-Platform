@@ -14,7 +14,7 @@ import {
   ArrowDownLeft, ArrowUpRight, Kanban,
   FileSignature, Landmark, Calculator, ClipboardList, UserCheck, Gavel,
   CircleDollarSign, Import, Ban, Clock, ListChecks, FolderOpen, CalendarClock,
-  FileWarning, ScanSearch, RefreshCw,
+  FileWarning, ScanSearch, RefreshCw, QrCode,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -27,7 +27,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   ArrowDownLeft, ArrowUpRight, Kanban,
   FileSignature, Landmark, Calculator, ClipboardList, UserCheck, Gavel,
   CircleDollarSign, Import, Ban, Clock, ListChecks, FolderOpen, CalendarClock,
-  FileWarning, ScanSearch, RefreshCw,
+  FileWarning, ScanSearch, RefreshCw, QrCode,
 }
 
 interface SidebarProps {
