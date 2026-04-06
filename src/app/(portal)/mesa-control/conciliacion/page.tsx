@@ -16,9 +16,18 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
+import { ErrorCard } from "@/components/dashboard/error-card"
+import { useServiceData } from "@/hooks/use-service-data"
+import { concentradoraService } from "@/lib/concentradora-service"
+import type { ReconciliationReport, SyncBalanceResult } from "@/lib/concentradora-service"
 import { formatMoney } from "@/lib/utils"
-import { CheckCircle, AlertTriangle, XCircle, RefreshCw, Loader2 } from "lucide-react"
+import { CheckCircle, AlertTriangle, RefreshCw, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+
+// ──────────────────────────────────────────────────────────
+// Types
+// ──────────────────────────────────────────────────────────
 
 interface Discrepancia {
   id: string
@@ -27,55 +36,95 @@ interface Discrepancia {
   montoSayo: number
   montoBanxico: number
   diferencia: number
-  status: string
+  status: "pendiente" | "investigando" | "resuelta"
   date: string
 }
 
-const conciliacionStats = [
-  { title: "Conciliadas", value: 2780, change: 98.5, icon: "CheckCircle", trend: "up" as const },
-  { title: "Discrepancias", value: 12, change: -5, icon: "AlertTriangle", trend: "down" as const },
-  { title: "Sin Match", value: 5, icon: "XCircle", trend: "neutral" as const },
-  { title: "Monto Discrepancia", value: 45000, icon: "DollarSign", format: "currency" as const, trend: "neutral" as const },
-]
-
-const conciliacionTrend = [
-  { name: "Lun", value: 2340, discrepancias: 8 },
-  { name: "Mar", value: 2780, discrepancias: 5 },
-  { name: "Mié", value: 2450, discrepancias: 12 },
-  { name: "Jue", value: 3100, discrepancias: 3 },
-  { name: "Vie", value: 2847, discrepancias: 7 },
-]
-
-const initialDiscrepancias: Discrepancia[] = [
-  { id: "DISC-001", txnId: "TXN-034", type: "Monto diferente", montoSayo: 50000, montoBanxico: 55000, diferencia: 5000, status: "pendiente", date: "2024-03-06" },
-  { id: "DISC-002", txnId: "TXN-087", type: "No encontrada en SPEI", montoSayo: 15000, montoBanxico: 0, diferencia: 15000, status: "pendiente", date: "2024-03-06" },
-  { id: "DISC-003", txnId: "TXN-112", type: "Duplicada", montoSayo: 25000, montoBanxico: 25000, diferencia: 0, status: "investigando", date: "2024-03-05" },
-  { id: "DISC-004", txnId: "N/A", type: "Sin match interno", montoSayo: 0, montoBanxico: 8500, diferencia: 8500, status: "pendiente", date: "2024-03-06" },
-]
+// ──────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────
 
 const statusIcon: Record<string, React.ReactNode> = {
-  pendiente: <AlertTriangle className="size-3.5 text-sayo-orange" />,
+  pendiente:    <AlertTriangle className="size-3.5 text-sayo-orange" />,
   investigando: <RefreshCw className="size-3.5 text-sayo-blue" />,
-  resuelta: <CheckCircle className="size-3.5 text-sayo-green" />,
+  resuelta:     <CheckCircle className="size-3.5 text-sayo-green" />,
 }
 
+function buildDiscrepanciasFromReport(report: ReconciliationReport): Discrepancia[] {
+  const discrepancias: Discrepancia[] = []
+  if (!report.is_reconciled) {
+    discrepancias.push({
+      id: "DISC-OPM-001",
+      txnId: "OPM-BALANCE",
+      type: "Balance OPM vs Local",
+      montoSayo: report.balance_local_stored,
+      montoBanxico: report.balance_opm,
+      diferencia: Math.abs(report.balance_diff),
+      status: "pendiente",
+      date: report.generated_at.slice(0, 10),
+    })
+    if (report.balance_local_stored !== report.balance_local_calculated) {
+      discrepancias.push({
+        id: "DISC-CALC-002",
+        txnId: "LOCAL-CALC",
+        type: "Balance Local vs Calculado",
+        montoSayo: report.balance_local_stored,
+        montoBanxico: report.balance_local_calculated,
+        diferencia: Math.abs(report.balance_local_stored - report.balance_local_calculated),
+        status: "pendiente",
+        date: report.generated_at.slice(0, 10),
+      })
+    }
+  }
+  return discrepancias
+}
+
+// ──────────────────────────────────────────────────────────
+// Page
+// ──────────────────────────────────────────────────────────
+
 export default function ConciliacionPage() {
-  const [discrepancias, setDiscrepancias] = React.useState(initialDiscrepancias)
-  const [running, setRunning] = React.useState(false)
-  const [confirmOpen, setConfirmOpen] = React.useState(false)
-  const [selectedDisc, setSelectedDisc] = React.useState<Discrepancia | null>(null)
-  const [conciliarOpen, setConciliarOpen] = React.useState(false)
+  const {
+    data: report,
+    isLoading,
+    error,
+    refetch,
+  } = useServiceData(() => concentradoraService.getReconciliation(), [])
+
+  const [running, setRunning]               = React.useState(false)
+  const [syncResult, setSyncResult]         = React.useState<SyncBalanceResult | null>(null)
+  const [selectedDisc, setSelectedDisc]     = React.useState<Discrepancia | null>(null)
+  const [conciliarOpen, setConciliarOpen]   = React.useState(false)
+  const [discrepancias, setDiscrepancias]   = React.useState<Discrepancia[]>([])
+
+  // Rebuild discrepancias whenever the report changes
+  React.useEffect(() => {
+    if (report) {
+      setDiscrepancias(buildDiscrepanciasFromReport(report))
+    }
+  }, [report])
 
   const handleRunConciliacion = async () => {
     setRunning(true)
-    toast.loading("Ejecutando conciliación...", { id: "conciliación" })
-    // Simulate async process
-    await new Promise((r) => setTimeout(r, 2500))
-    setRunning(false)
-    toast.success("Conciliación completada", {
-      id: "conciliación",
-      description: "2,847 transacciones procesadas — 4 discrepancias encontradas",
-    })
+    toast.loading("Ejecutando conciliación...", { id: "conciliacion" })
+    try {
+      const result = await concentradoraService.syncBalance()
+      setSyncResult(result)
+      toast.success("Conciliación completada", {
+        id: "conciliacion",
+        description: result.is_reconciled
+          ? `Balance OPM: ${formatMoney(result.balance_opm)} — Conciliado`
+          : `Diferencia detectada: ${formatMoney(Math.abs(result.balance_diff))}`,
+      })
+      refetch()
+    } catch (err) {
+      toast.error("Error al ejecutar conciliación", {
+        id: "conciliacion",
+        description: err instanceof Error ? err.message : "Intenta de nuevo",
+      })
+    } finally {
+      setRunning(false)
+    }
   }
 
   const handleConciliar = (disc: Discrepancia) => {
@@ -99,18 +148,111 @@ export default function ConciliacionPage() {
     toast.info("Discrepancia en investigación", { description: `${disc.id} asignada para revisión` })
   }
 
+  if (isLoading) return <DashboardSkeleton variant="stats-and-table" />
+  if (error)     return <ErrorCard message={error} onRetry={refetch} />
+  if (!report)   return null
+
+  // Build StatCard data from real reconciliation report
+  const totalSubcuentas = report.total_subcuentas
+  const isReconciled    = report.is_reconciled
+  const balanceDiff     = Math.abs(report.balance_diff)
+  const activeDiscs     = discrepancias.filter((d) => d.status !== "resuelta").length
+
+  const conciliacionStats = [
+    {
+      title: "Subcuentas Totales",
+      value: totalSubcuentas,
+      icon: "CheckCircle",
+      trend: "up" as const,
+    },
+    {
+      title: "Discrepancias",
+      value: activeDiscs,
+      icon: "AlertTriangle",
+      trend: activeDiscs > 0 ? ("down" as const) : ("up" as const),
+    },
+    {
+      title: "Estado",
+      value: isReconciled ? "Conciliado" : "Diferencia",
+      icon: "CheckCircle",
+      trend: isReconciled ? ("up" as const) : ("down" as const),
+    },
+    {
+      title: "Diferencia OPM",
+      value: balanceDiff,
+      icon: "DollarSign",
+      format: "currency" as const,
+      trend: balanceDiff === 0 ? ("up" as const) : ("neutral" as const),
+    },
+  ]
+
+  // Chart data: balance comparison
+  const conciliacionTrend = [
+    { name: "OPM",      value: report.balance_opm,              discrepancias: 0 },
+    { name: "Local",    value: report.balance_local_stored,     discrepancias: isReconciled ? 0 : 1 },
+    { name: "Calculado", value: report.balance_local_calculated, discrepancias: 0 },
+  ]
+
+  // Sync result info row
+  const lastSync = syncResult?.synced_at ?? report.last_opm_sync
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">Conciliación</h1>
-          <p className="text-sm text-muted-foreground">Comparativa SPEI (Banxico) vs registros internos SAYO</p>
+          <p className="text-sm text-muted-foreground">
+            Balance OPM vs saldo local — Concentradora {report.name}
+          </p>
         </div>
-        <Button onClick={handleRunConciliacion} disabled={running}>
-          {running ? <Loader2 className="size-4 mr-1.5 animate-spin" /> : <RefreshCw className="size-4 mr-1.5" />}
+        <Button onClick={() => void handleRunConciliacion()} disabled={running}>
+          {running
+            ? <Loader2 className="size-4 mr-1.5 animate-spin" />
+            : <RefreshCw className="size-4 mr-1.5" />
+          }
           {running ? "Ejecutando..." : "Ejecutar Conciliación"}
         </Button>
       </div>
+
+      {/* Reconciliation Summary Banner */}
+      <Card className={isReconciled ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-2">
+              {isReconciled
+                ? <CheckCircle className="size-5 text-green-600" />
+                : <AlertTriangle className="size-5 text-red-600" />
+              }
+              <span className={`font-semibold text-sm ${isReconciled ? "text-green-700" : "text-red-700"}`}>
+                {isReconciled ? "Conciliación en orden" : "Diferencia detectada"}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-6 text-xs">
+              <div>
+                <p className="text-muted-foreground">Balance OPM</p>
+                <p className="font-bold tabular-nums">{formatMoney(report.balance_opm)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Balance Local (almacenado)</p>
+                <p className="font-bold tabular-nums">{formatMoney(report.balance_local_stored)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Balance Calculado</p>
+                <p className="font-bold tabular-nums">{formatMoney(report.balance_local_calculated)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Diferencia</p>
+                <p className={`font-bold tabular-nums ${balanceDiff > 0 ? "text-red-600" : "text-green-600"}`}>
+                  {formatMoney(balanceDiff)}
+                </p>
+              </div>
+            </div>
+            <div className="ml-auto text-[10px] text-muted-foreground whitespace-nowrap">
+              Último sync: {lastSync ? new Date(lastSync).toLocaleString("es-MX") : "—"}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -120,7 +262,7 @@ export default function ConciliacionPage() {
       </div>
 
       {/* Chart */}
-      <ChartCard title="Conciliación Semanal" description="Transacciones conciliadas vs discrepancias">
+      <ChartCard title="Comparativa de Balances" description="OPM vs balance local almacenado vs calculado">
         <BarChartComponent
           data={conciliacionTrend}
           dataKey="value"
@@ -130,66 +272,106 @@ export default function ConciliacionPage() {
         />
       </ChartCard>
 
+      {/* Reconciliation Detail Table */}
+      <Card>
+        <CardContent className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">Detalle de Reconciliación</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+            {[
+              { label: "Concentradora",          value: report.concentradora_id },
+              { label: "RFC",                    value: report.rfc },
+              { label: "CLABE",                  value: report.clabe },
+              { label: "Total Subcuentas",       value: report.total_subcuentas.toLocaleString() },
+              { label: "Balance OPM",            value: formatMoney(report.balance_opm) },
+              { label: "Balance Local",          value: formatMoney(report.balance_local_stored) },
+              { label: "Balance Calculado",      value: formatMoney(report.balance_local_calculated) },
+              { label: "Diferencia",             value: formatMoney(report.balance_diff) },
+              { label: "Estado",                 value: report.is_reconciled ? "Conciliado" : "Con diferencias" },
+            ].map((item) => (
+              <div key={item.label}>
+                <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
+                <p className="font-medium">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Discrepancies */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold">Discrepancias Pendientes</h2>
-          <Badge variant="outline">{discrepancias.filter((d) => d.status !== "resuelta").length} activas</Badge>
+          <Badge variant="outline">
+            {discrepancias.filter((d) => d.status !== "resuelta").length} activas
+          </Badge>
         </div>
-        <div className="space-y-2">
-          {discrepancias.map((d) => (
-            <Card key={d.id} className={d.status === "resuelta" ? "opacity-60" : ""}>
-              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center gap-2">
-                  {statusIcon[d.status]}
-                  <span className="font-mono text-xs">{d.id}</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{d.type}</p>
-                  <p className="text-xs text-muted-foreground">TXN: {d.txnId} — {d.date}</p>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <div className="text-center">
-                    <p className="text-muted-foreground">SAYO</p>
-                    <p className="font-semibold tabular-nums">{formatMoney(d.montoSayo)}</p>
+
+        {discrepancias.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <CheckCircle className="size-8 text-sayo-green mx-auto mb-2" />
+              <p className="text-sm font-medium text-sayo-green">Sin discrepancias detectadas</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Los balances OPM y local están conciliados.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {discrepancias.map((d) => (
+              <Card key={d.id} className={d.status === "resuelta" ? "opacity-60" : ""}>
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {statusIcon[d.status]}
+                    <span className="font-mono text-xs">{d.id}</span>
                   </div>
-                  <div className="text-center">
-                    <p className="text-muted-foreground">Banxico</p>
-                    <p className="font-semibold tabular-nums">{formatMoney(d.montoBanxico)}</p>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{d.type}</p>
+                    <p className="text-xs text-muted-foreground">TXN: {d.txnId} — {d.date}</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-muted-foreground">Δ</p>
-                    <p className={`font-semibold tabular-nums ${d.diferencia > 0 ? "text-sayo-red" : "text-sayo-green"}`}>
-                      {formatMoney(d.diferencia)}
-                    </p>
+                  <div className="flex items-center gap-4 text-xs">
+                    <div className="text-center">
+                      <p className="text-muted-foreground">SAYO</p>
+                      <p className="font-semibold tabular-nums">{formatMoney(d.montoSayo)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-muted-foreground">OPM</p>
+                      <p className="font-semibold tabular-nums">{formatMoney(d.montoBanxico)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-muted-foreground">Δ</p>
+                      <p className={`font-semibold tabular-nums ${d.diferencia > 0 ? "text-sayo-red" : "text-sayo-green"}`}>
+                        {formatMoney(d.diferencia)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {d.status === "pendiente" && (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => handleInvestigar(d)}>
-                        Investigar
-                      </Button>
+                  <div className="flex items-center gap-1">
+                    {d.status === "pendiente" && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => handleInvestigar(d)}>
+                          Investigar
+                        </Button>
+                        <Button size="sm" onClick={() => handleConciliar(d)}>
+                          Conciliar
+                        </Button>
+                      </>
+                    )}
+                    {d.status === "investigando" && (
                       <Button size="sm" onClick={() => handleConciliar(d)}>
                         Conciliar
                       </Button>
-                    </>
-                  )}
-                  {d.status === "investigando" && (
-                    <Button size="sm" onClick={() => handleConciliar(d)}>
-                      Conciliar
-                    </Button>
-                  )}
-                  {d.status === "resuelta" && (
-                    <Badge variant="outline" className="text-[10px] text-sayo-green">
-                      <CheckCircle className="size-3 mr-1" /> Resuelta
-                    </Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    )}
+                    {d.status === "resuelta" && (
+                      <Badge variant="outline" className="text-[10px] text-sayo-green">
+                        <CheckCircle className="size-3 mr-1" /> Resuelta
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Conciliar Confirmation Dialog */}
@@ -198,7 +380,7 @@ export default function ConciliacionPage() {
           <DialogHeader>
             <DialogTitle>Confirmar Conciliación</DialogTitle>
             <DialogDescription>
-              ¿Marcar {selectedDisc?.id} como resuelta?
+              Marcar {selectedDisc?.id} como resuelta?
             </DialogDescription>
           </DialogHeader>
           {selectedDisc && (

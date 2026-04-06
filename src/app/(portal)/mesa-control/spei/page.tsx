@@ -15,24 +15,73 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog"
-import { useTransactions } from "@/hooks/use-accounts"
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 import { ErrorCard } from "@/components/dashboard/error-card"
+import { useServiceData } from "@/hooks/use-service-data"
+import { accountsService } from "@/lib/accounts-service"
 import { formatMoney, formatClabe, getStatusColor, copyToClipboard } from "@/lib/utils"
 import type { Transaction } from "@/lib/types"
-import { ArrowDownLeft, ArrowUpRight, Eye, Copy, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react"
+import { ArrowDownLeft, ArrowUpRight, Eye, Copy, CheckCircle, XCircle, Clock, Loader2, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
+// ──────────────────────────────────────────────────────────
+// Mapper: TransactionRecord (snake_case) → Transaction (camelCase)
+// ──────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTransaction(t: any): Transaction {
+  return {
+    id:            t.id,
+    claveRastreo:  t.clave_rastreo ?? t.claveRastreo ?? "",
+    type:          t.type ?? "SPEI_IN",
+    status:        t.status,
+    amount:        t.amount,
+    concept:       t.concepto ?? t.concept ?? t.description ?? "",
+    senderName:    t.sender_name   ?? t.senderName   ?? "",
+    senderBank:    t.sender_bank   ?? t.senderBank   ?? "",
+    senderClabe:   t.sender_clabe  ?? t.senderClabe  ?? "",
+    receiverName:  t.receiver_name ?? t.receiverName ?? "",
+    receiverBank:  t.receiver_bank ?? t.receiverBank ?? "",
+    receiverClabe: t.receiver_clabe ?? t.receiverClabe ?? "",
+    date:          t.initiated_at  ?? t.date ?? t.created_at ?? "",
+    hour:          t.initiated_at
+      ? new Date(t.initiated_at).toLocaleTimeString("es-MX", { hour12: false })
+      : (t.hour ?? ""),
+  }
+}
+
+// ──────────────────────────────────────────────────────────
+// Page
+// ──────────────────────────────────────────────────────────
+
 export default function SPEIPage() {
-  const { data: transactions, isLoading, error, refetch } = useTransactions()
+  // Fetch all transactions and filter to SPEI_IN / SPEI_OUT client-side.
+  // The API accepts ?type=SPEI_IN,SPEI_OUT but demo mode uses exact-match
+  // filtering, so we fetch without a type param and filter locally instead.
+  const {
+    data: rawTransactions,
+    isLoading,
+    error,
+    refetch,
+  } = useServiceData(
+    () => accountsService.getAllTransactions(),
+    []
+  )
+
   const [selectedTxn, setSelectedTxn] = React.useState<Transaction | null>(null)
-  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [detailOpen, setDetailOpen]   = React.useState(false)
+
+  const transactions = React.useMemo<Transaction[]>(() => {
+    if (!rawTransactions) return []
+    return rawTransactions
+      .filter((t) => t.type === "SPEI_IN" || t.type === "SPEI_OUT")
+      .map(mapTransaction)
+  }, [rawTransactions])
 
   if (isLoading) return <DashboardSkeleton variant="stats-and-table" />
-  if (error) return <ErrorCard message={error} onRetry={refetch} />
-  if (!transactions) return null
+  if (error)     return <ErrorCard message={error} onRetry={refetch} />
 
-  const speiIn = transactions.filter((t) => t.type === "SPEI_IN")
+  const speiIn  = transactions.filter((t) => t.type === "SPEI_IN")
   const speiOut = transactions.filter((t) => t.type === "SPEI_OUT")
 
   const handleView = (txn: Transaction) => {
@@ -43,22 +92,22 @@ export default function SPEIPage() {
   const handleCopyClave = async (clave: string) => {
     const ok = await copyToClipboard(clave)
     if (ok) toast.success("Clave de rastreo copiada", { description: clave })
-    else toast.error("No se pudo copiar")
+    else    toast.error("No se pudo copiar")
   }
 
   const handleCopyClabe = async (clabe: string) => {
     const ok = await copyToClipboard(clabe)
     if (ok) toast.success("CLABE copiada", { description: formatClabe(clabe) })
-    else toast.error("No se pudo copiar")
+    else    toast.error("No se pudo copiar")
   }
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case "completada": return <CheckCircle className="size-3" />
-      case "rechazada": return <XCircle className="size-3" />
-      case "pendiente": return <Clock className="size-3" />
-      case "en_proceso": return <Loader2 className="size-3 animate-spin" />
-      default: return null
+      case "completada":  return <CheckCircle className="size-3" />
+      case "rechazada":   return <XCircle className="size-3" />
+      case "pendiente":   return <Clock className="size-3" />
+      case "en_proceso":  return <Loader2 className="size-3 animate-spin" />
+      default:            return null
     }
   }
 
@@ -68,7 +117,7 @@ export default function SPEIPage() {
       header: "Clave Rastreo",
       cell: ({ row }) => (
         <button
-          onClick={(e) => { e.stopPropagation(); handleCopyClave(row.original.claveRastreo) }}
+          onClick={(e) => { e.stopPropagation(); void handleCopyClave(row.original.claveRastreo) }}
           className="font-mono text-xs hover:text-sayo-cafe transition-colors flex items-center gap-1 group"
         >
           {row.original.claveRastreo}
@@ -90,10 +139,14 @@ export default function SPEIPage() {
         </div>
       ),
     },
-    { accessorKey: "senderName", header: "Origen" },
-    { accessorKey: "senderBank", header: "Banco Origen", cell: ({ row }) => <span className="text-xs">{row.original.senderBank}</span> },
+    { accessorKey: "senderName",  header: "Origen" },
+    { accessorKey: "senderBank",  header: "Banco Origen", cell: ({ row }) => <span className="text-xs">{row.original.senderBank}</span> },
     { accessorKey: "receiverName", header: "Destino" },
-    { accessorKey: "amount", header: "Monto", cell: ({ row }) => <span className="font-semibold tabular-nums">{formatMoney(row.original.amount)}</span> },
+    {
+      accessorKey: "amount",
+      header: "Monto",
+      cell: ({ row }) => <span className="font-semibold tabular-nums">{formatMoney(row.original.amount)}</span>,
+    },
     {
       accessorKey: "status",
       header: "Estado",
@@ -104,12 +157,20 @@ export default function SPEIPage() {
         </span>
       ),
     },
-    { accessorKey: "hour", header: "Hora", cell: ({ row }) => <span className="text-muted-foreground text-xs tabular-nums">{row.original.hour}</span> },
+    {
+      accessorKey: "hour",
+      header: "Hora",
+      cell: ({ row }) => <span className="text-muted-foreground text-xs tabular-nums">{row.original.hour}</span>,
+    },
     {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); handleView(row.original) }}>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={(e) => { e.stopPropagation(); handleView(row.original) }}
+        >
           <Eye className="size-3.5" />
         </Button>
       ),
@@ -118,16 +179,22 @@ export default function SPEIPage() {
 
   const statusTabs = [
     { label: "Completada", value: "completada", count: transactions.filter((t) => t.status === "completada").length },
-    { label: "Pendiente", value: "pendiente", count: transactions.filter((t) => t.status === "pendiente").length },
-    { label: "Rechazada", value: "rechazada", count: transactions.filter((t) => t.status === "rechazada").length },
+    { label: "Pendiente",  value: "pendiente",  count: transactions.filter((t) => t.status === "pendiente").length },
+    { label: "Rechazada",  value: "rechazada",  count: transactions.filter((t) => t.status === "rechazada").length },
     { label: "En Proceso", value: "en_proceso", count: transactions.filter((t) => t.status === "en_proceso").length },
   ]
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Operaciones SPEI</h1>
-        <p className="text-sm text-muted-foreground">Transferencias electrónicas interbancarias</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">Operaciones SPEI</h1>
+          <p className="text-sm text-muted-foreground">Transferencias electrónicas interbancarias</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={refetch}>
+          <RefreshCw className="size-4 mr-1.5" />
+          Actualizar
+        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -140,7 +207,9 @@ export default function SPEIPage() {
             <div>
               <p className="text-xs text-muted-foreground">SPEI Entrada</p>
               <p className="text-lg font-bold">{speiIn.length} ops</p>
-              <p className="text-[10px] text-sayo-green font-medium">{formatMoney(speiIn.reduce((s, t) => s + t.amount, 0))}</p>
+              <p className="text-[10px] text-sayo-green font-medium">
+                {formatMoney(speiIn.reduce((s, t) => s + t.amount, 0))}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -152,7 +221,9 @@ export default function SPEIPage() {
             <div>
               <p className="text-xs text-muted-foreground">SPEI Salida</p>
               <p className="text-lg font-bold">{speiOut.length} ops</p>
-              <p className="text-[10px] text-sayo-red font-medium">{formatMoney(speiOut.reduce((s, t) => s + t.amount, 0))}</p>
+              <p className="text-[10px] text-sayo-red font-medium">
+                {formatMoney(speiOut.reduce((s, t) => s + t.amount, 0))}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -163,7 +234,9 @@ export default function SPEIPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total Procesado</p>
-              <p className="text-lg font-bold">{formatMoney(transactions.reduce((s, t) => s + t.amount, 0))}</p>
+              <p className="text-lg font-bold">
+                {formatMoney(transactions.reduce((s, t) => s + t.amount, 0))}
+              </p>
               <p className="text-[10px] text-muted-foreground">{transactions.length} transacciones</p>
             </div>
           </CardContent>
@@ -209,7 +282,10 @@ export default function SPEIPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Clave Rastreo</p>
-                  <button onClick={() => handleCopyClave(selectedTxn.claveRastreo)} className="font-mono text-sm flex items-center gap-1 hover:text-sayo-cafe">
+                  <button
+                    onClick={() => void handleCopyClave(selectedTxn.claveRastreo)}
+                    className="font-mono text-sm flex items-center gap-1 hover:text-sayo-cafe"
+                  >
                     {selectedTxn.claveRastreo} <Copy className="size-3" />
                   </button>
                 </div>
@@ -231,7 +307,10 @@ export default function SPEIPage() {
               <div className="p-3 rounded-lg border space-y-1.5">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Ordenante</p>
                 <p className="text-sm font-medium">{selectedTxn.senderName} — {selectedTxn.senderBank}</p>
-                <button onClick={() => handleCopyClabe(selectedTxn.senderClabe)} className="font-mono text-xs text-muted-foreground flex items-center gap-1 hover:text-sayo-cafe">
+                <button
+                  onClick={() => void handleCopyClabe(selectedTxn.senderClabe)}
+                  className="font-mono text-xs text-muted-foreground flex items-center gap-1 hover:text-sayo-cafe"
+                >
                   {formatClabe(selectedTxn.senderClabe)} <Copy className="size-3" />
                 </button>
               </div>
@@ -240,7 +319,10 @@ export default function SPEIPage() {
               <div className="p-3 rounded-lg border space-y-1.5">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Beneficiario</p>
                 <p className="text-sm font-medium">{selectedTxn.receiverName} — {selectedTxn.receiverBank}</p>
-                <button onClick={() => handleCopyClabe(selectedTxn.receiverClabe)} className="font-mono text-xs text-muted-foreground flex items-center gap-1 hover:text-sayo-cafe">
+                <button
+                  onClick={() => void handleCopyClabe(selectedTxn.receiverClabe)}
+                  className="font-mono text-xs text-muted-foreground flex items-center gap-1 hover:text-sayo-cafe"
+                >
                   {formatClabe(selectedTxn.receiverClabe)} <Copy className="size-3" />
                 </button>
               </div>

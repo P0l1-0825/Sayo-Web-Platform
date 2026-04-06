@@ -14,11 +14,31 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog"
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
+import { ErrorCard } from "@/components/dashboard/error-card"
+import { useServiceData } from "@/hooks/use-service-data"
+import { tesoreriaService } from "@/lib/tesoreria-service"
+import { accountsService } from "@/lib/accounts-service"
 import { formatMoney } from "@/lib/utils"
-import { Send, Users, Clock, CheckCircle, Eye, Download, Plus, FileText } from "lucide-react"
+import { Send, Users, Clock, CheckCircle, Eye, Download, Plus, FileText, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
+import type { Batch } from "@/lib/accounts-service"
 
-interface Dispersion {
+interface TreasuryPayment {
+  id: string
+  folio: string
+  concept: string
+  amount: number
+  status: string
+  date: string
+  type: string
+}
+
+// ──────────────────────────────────────────────────────────
+// Types
+// ──────────────────────────────────────────────────────────
+
+interface DispersionItem {
   id: string
   name: string
   type: string
@@ -29,61 +49,172 @@ interface Dispersion {
   status: string
   date: string
   hora: string
+  source: "batch" | "payment"
 }
 
-const initialDispersiones: Dispersion[] = [
-  { id: "DISP-045", name: "Nómina Quincenal Mar-1", type: "Nómina", beneficiarios: 35, total: 890000, procesados: 33, pendientes: 2, status: "en_proceso", date: "2024-03-06", hora: "10:15" },
-  { id: "DISP-044", name: "Nómina Quincenal Feb-2", type: "Nómina", beneficiarios: 34, total: 865000, procesados: 34, pendientes: 0, status: "completada", date: "2024-02-29", hora: "10:00" },
-  { id: "DISP-043", name: "Dispersión Créditos Feb", type: "Créditos", beneficiarios: 12, total: 3200000, procesados: 12, pendientes: 0, status: "completada", date: "2024-02-28", hora: "14:30" },
-  { id: "DISP-042", name: "Comisiones Comercial Feb", type: "Comisiones", beneficiarios: 8, total: 145000, procesados: 8, pendientes: 0, status: "completada", date: "2024-02-27", hora: "16:00" },
-  { id: "DISP-041", name: "Nómina Quincenal Feb-1", type: "Nómina", beneficiarios: 34, total: 862000, procesados: 34, pendientes: 0, status: "completada", date: "2024-02-15", hora: "10:00" },
-]
+// ──────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────
 
 const statusMap: Record<string, { label: string; color: string }> = {
-  en_proceso: { label: "En Proceso", color: "bg-blue-100 text-blue-700" },
-  completada: { label: "Completada", color: "bg-green-100 text-green-700" },
-  pendiente: { label: "Pendiente", color: "bg-yellow-100 text-yellow-700" },
-  error: { label: "Error", color: "bg-red-100 text-red-700" },
+  en_proceso:  { label: "En Proceso",  color: "bg-blue-100 text-blue-700" },
+  procesando:  { label: "En Proceso",  color: "bg-blue-100 text-blue-700" },
+  procesado:   { label: "En Proceso",  color: "bg-blue-100 text-blue-700" },
+  completada:  { label: "Completada",  color: "bg-green-100 text-green-700" },
+  completado:  { label: "Completada",  color: "bg-green-100 text-green-700" },
+  pendiente:   { label: "Pendiente",   color: "bg-yellow-100 text-yellow-700" },
+  autorizado:  { label: "Autorizado",  color: "bg-purple-100 text-purple-700" },
+  rechazado:   { label: "Rechazado",   color: "bg-red-100 text-red-700" },
+  cancelado:   { label: "Cancelado",   color: "bg-gray-100 text-gray-700" },
+  error:       { label: "Error",       color: "bg-red-100 text-red-700" },
+  fallido:     { label: "Error",       color: "bg-red-100 text-red-700" },
+  parcial:     { label: "Parcial",     color: "bg-orange-100 text-orange-700" },
 }
 
+function isActive(status: string) {
+  return status === "en_proceso" || status === "procesando" || status === "procesado" || status === "pendiente" || status === "autorizado"
+}
+
+function isCompleted(status: string) {
+  return status === "completada" || status === "completado"
+}
+
+function mapBatchToDispersion(b: Batch): DispersionItem {
+  const date = b.started_at ?? b.completed_at ?? b.created_at ?? new Date().toISOString()
+  const parsedDate = new Date(date)
+  return {
+    id: b.id,
+    name: b.name,
+    type: b.type === "nomina" ? "Nomina" : b.type === "proveedores" ? "Proveedores" : "Otro",
+    beneficiarios: b.total_transactions,
+    total: b.total_amount,
+    procesados: b.success_count,
+    pendientes: b.total_transactions - b.success_count - b.failed_count,
+    status: b.status,
+    date: parsedDate.toISOString().slice(0, 10),
+    hora: parsedDate.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+    source: "batch",
+  }
+}
+
+function mapPaymentToDispersion(p: TreasuryPayment): DispersionItem {
+  const parsedDate = new Date(p.date)
+  return {
+    id: p.folio,
+    name: p.concept,
+    type: "Dispersión",
+    beneficiarios: 1,
+    total: p.amount,
+    procesados: isCompleted(p.status) ? 1 : 0,
+    pendientes: isCompleted(p.status) ? 0 : 1,
+    status: p.status,
+    date: p.date,
+    hora: parsedDate.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+    source: "payment",
+  }
+}
+
+// ──────────────────────────────────────────────────────────
+// Page
+// ──────────────────────────────────────────────────────────
+
 export default function DispersionesPage() {
-  const [dispersiones, setDispersiones] = React.useState(initialDispersiones)
-  const [selectedDisp, setSelectedDisp] = React.useState<Dispersion | null>(null)
+  const {
+    data: batches,
+    isLoading: batchesLoading,
+    error: batchesError,
+    refetch: refetchBatches,
+  } = useServiceData(() => accountsService.getBatches(), [])
+
+  const {
+    data: payments,
+    isLoading: paymentsLoading,
+    error: paymentsError,
+    refetch: refetchPayments,
+  } = useServiceData(
+    () => tesoreriaService.getPayments({ type: "dispersion" }),
+    []
+  )
+
+  const [selectedDisp, setSelectedDisp] = React.useState<DispersionItem | null>(null)
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [newOpen, setNewOpen] = React.useState(false)
   const [newForm, setNewForm] = React.useState({ name: "", type: "Nómina", beneficiarios: "", total: "" })
+  const [submitting, setSubmitting] = React.useState(false)
 
-  const handleView = (d: Dispersion) => {
+  const isLoading = batchesLoading || paymentsLoading
+  const error = batchesError || paymentsError
+
+  const dispersiones = React.useMemo<DispersionItem[]>(() => {
+    const batchItems = (batches ?? []).map(mapBatchToDispersion)
+    const paymentItems = (payments ?? []).map(mapPaymentToDispersion)
+    // Merge, deduplicate by id, sort newest first
+    const merged = [...batchItems, ...paymentItems]
+    merged.sort((a, b) => (a.date < b.date ? 1 : -1))
+    return merged
+  }, [batches, payments])
+
+  const handleView = (d: DispersionItem) => {
     setSelectedDisp(d)
     setDetailOpen(true)
   }
 
-  const handleDownload = (d: Dispersion) => {
+  const handleDownload = (d: DispersionItem) => {
     toast.success("Descargando reporte", { description: `${d.id} — ${d.name}.csv` })
   }
 
-  const handleNewDispersion = () => {
+  const handleRefresh = () => {
+    refetchBatches()
+    refetchPayments()
+    toast.info("Actualizando dispersiones...")
+  }
+
+  const handleNewDispersion = async () => {
     if (!newForm.name || !newForm.beneficiarios || !newForm.total) {
       toast.error("Completa todos los campos")
       return
     }
-    const newDisp: Dispersion = {
-      id: `DISP-${String(dispersiones.length + 40).padStart(3, "0")}`,
-      name: newForm.name,
-      type: newForm.type,
-      beneficiarios: parseInt(newForm.beneficiarios),
-      total: parseFloat(newForm.total),
-      procesados: 0,
-      pendientes: parseInt(newForm.beneficiarios),
-      status: "pendiente",
-      date: new Date().toISOString().slice(0, 10),
-      hora: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+    setSubmitting(true)
+    try {
+      const typeMap: Record<string, string> = {
+        "Nómina": "nomina",
+        "Créditos": "dispersiones",
+        "Comisiones": "proveedores",
+        "Otro": "custom",
+      }
+      await accountsService.getBatches() // verify service is reachable
+      // Create via tesoreria as a dispersion payment
+      await tesoreriaService.createPayment({
+        type: "dispersion",
+        beneficiaryName: newForm.name,
+        beneficiaryBank: "Varios",
+        beneficiaryClabe: "N/A",
+        amount: parseFloat(newForm.total),
+        concept: `${newForm.type} — ${newForm.name}`,
+        reference: typeMap[newForm.type] ?? "custom",
+        sourceAccount: "646180009999888877",
+        status: "pendiente",
+        requestedBy: "Mesa Control",
+        date: new Date().toISOString().slice(0, 10),
+      })
+      toast.success("Dispersión creada", { description: newForm.name })
+      setNewOpen(false)
+      setNewForm({ name: "", type: "Nómina", beneficiarios: "", total: "" })
+      refetchBatches()
+      refetchPayments()
+    } catch (err) {
+      toast.error("Error al crear dispersión", { description: err instanceof Error ? err.message : "Intenta de nuevo" })
+    } finally {
+      setSubmitting(false)
     }
-    setDispersiones([newDisp, ...dispersiones])
-    setNewOpen(false)
-    setNewForm({ name: "", type: "Nómina", beneficiarios: "", total: "" })
-    toast.success("Dispersión creada", { description: `${newDisp.id} — ${newDisp.name}` })
   }
+
+  if (isLoading) return <DashboardSkeleton variant="stats-and-table" />
+  if (error) return <ErrorCard message={error} onRetry={handleRefresh} />
+
+  const totalDispersado = dispersiones.reduce((s, d) => s + d.total, 0)
+  const completadas = dispersiones.filter((d) => isCompleted(d.status)).length
+  const enProceso = dispersiones.filter((d) => isActive(d.status)).length
 
   return (
     <div className="space-y-6">
@@ -92,10 +223,16 @@ export default function DispersionesPage() {
           <h1 className="text-xl font-bold">Dispersiones</h1>
           <p className="text-sm text-muted-foreground">Lotes de dispersión: nómina, créditos y comisiones</p>
         </div>
-        <Button onClick={() => setNewOpen(true)}>
-          <Plus className="size-4 mr-1.5" />
-          Nueva Dispersión
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCw className="size-4 mr-1.5" />
+            Actualizar
+          </Button>
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="size-4 mr-1.5" />
+            Nueva Dispersión
+          </Button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -107,7 +244,7 @@ export default function DispersionesPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total Dispersado</p>
-              <p className="text-lg font-bold">{formatMoney(dispersiones.reduce((s, d) => s + d.total, 0))}</p>
+              <p className="text-lg font-bold">{formatMoney(totalDispersado)}</p>
             </div>
           </CardContent>
         </Card>
@@ -118,7 +255,7 @@ export default function DispersionesPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Completadas</p>
-              <p className="text-lg font-bold">{dispersiones.filter((d) => d.status === "completada").length}</p>
+              <p className="text-lg font-bold">{completadas}</p>
             </div>
           </CardContent>
         </Card>
@@ -129,92 +266,100 @@ export default function DispersionesPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">En Proceso</p>
-              <p className="text-lg font-bold">{dispersiones.filter((d) => d.status === "en_proceso" || d.status === "pendiente").length}</p>
+              <p className="text-lg font-bold">{enProceso}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Dispersión Cards */}
-      <div className="space-y-3">
-        {dispersiones.map((d) => {
-          const status = statusMap[d.status] || statusMap.pendiente
-          const progress = d.beneficiarios > 0 ? Math.round((d.procesados / d.beneficiarios) * 100) : 0
+      {dispersiones.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground text-sm">
+            No se encontraron dispersiones registradas.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {dispersiones.map((d) => {
+            const status = statusMap[d.status] ?? statusMap.pendiente
+            const progress = d.beneficiarios > 0 ? Math.round((d.procesados / d.beneficiarios) * 100) : 0
 
-          return (
-            <Card key={d.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  {/* Info */}
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-semibold">{d.name}</h3>
-                      <Badge variant="outline" className="text-[10px]">{d.type}</Badge>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${status.color}`}>
-                        {status.label}
-                      </span>
+            return (
+              <Card key={d.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    {/* Info */}
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-semibold">{d.name}</h3>
+                        <Badge variant="outline" className="text-[10px]">{d.type}</Badge>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${status.color}`}>
+                          {status.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {d.id} — {d.date} {d.hora}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {d.id} — {d.date} {d.hora}
-                    </p>
-                  </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center gap-6 text-center">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Beneficiarios</p>
-                      <div className="flex items-center gap-1 justify-center">
-                        <Users className="size-3.5 text-muted-foreground" />
-                        <p className="text-sm font-bold">{d.beneficiarios}</p>
+                    {/* Stats */}
+                    <div className="flex items-center gap-6 text-center">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Beneficiarios</p>
+                        <div className="flex items-center gap-1 justify-center">
+                          <Users className="size-3.5 text-muted-foreground" />
+                          <p className="text-sm font-bold">{d.beneficiarios}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="text-sm font-bold">{formatMoney(d.total)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Progreso</p>
+                        <div className="flex items-center gap-1 justify-center">
+                          {progress === 100 ? (
+                            <CheckCircle className="size-3.5 text-sayo-green" />
+                          ) : (
+                            <Clock className="size-3.5 text-sayo-blue" />
+                          )}
+                          <p className="text-sm font-bold">{progress}%</p>
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Total</p>
-                      <p className="text-sm font-bold">{formatMoney(d.total)}</p>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon-sm" onClick={() => handleView(d)} title="Ver detalle">
+                        <Eye className="size-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => handleDownload(d)} title="Descargar">
+                        <Download className="size-4" />
+                      </Button>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Progreso</p>
-                      <div className="flex items-center gap-1 justify-center">
-                        {progress === 100 ? (
-                          <CheckCircle className="size-3.5 text-sayo-green" />
-                        ) : (
-                          <Clock className="size-3.5 text-sayo-blue" />
-                        )}
-                        <p className="text-sm font-bold">{progress}%</p>
+                  </div>
+
+                  {/* Progress bar */}
+                  {isActive(d.status) && (
+                    <div className="mt-3">
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-sayo-blue transition-all duration-500"
+                          style={{ width: `${progress}%` }}
+                        />
                       </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {d.procesados} de {d.beneficiarios} procesados — {d.pendientes} pendientes
+                      </p>
                     </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon-sm" onClick={() => handleView(d)} title="Ver detalle">
-                      <Eye className="size-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => handleDownload(d)} title="Descargar">
-                      <Download className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                {(d.status === "en_proceso" || d.status === "pendiente") && (
-                  <div className="mt-3">
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-sayo-blue transition-all duration-500"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {d.procesados} de {d.beneficiarios} procesados — {d.pendientes} pendientes
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -227,7 +372,7 @@ export default function DispersionesPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusMap[selectedDisp.status]?.color}`}>
-                  {statusMap[selectedDisp.status]?.label}
+                  {statusMap[selectedDisp.status]?.label ?? selectedDisp.status}
                 </span>
                 <p className="text-xl font-bold tabular-nums">{formatMoney(selectedDisp.total)}</p>
               </div>
@@ -246,19 +391,22 @@ export default function DispersionesPage() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase">Progreso</p>
-                  <p className="font-semibold">{selectedDisp.procesados}/{selectedDisp.beneficiarios} ({Math.round((selectedDisp.procesados / selectedDisp.beneficiarios) * 100)}%)</p>
+                  <p className="font-semibold">
+                    {selectedDisp.procesados}/{selectedDisp.beneficiarios}{" "}
+                    ({Math.round((selectedDisp.procesados / Math.max(selectedDisp.beneficiarios, 1)) * 100)}%)
+                  </p>
                 </div>
               </div>
-              {/* Mock beneficiaries list */}
               <div className="p-3 rounded-lg border space-y-2">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase">Beneficiarios (muestra)</p>
-                {["Juan Pérez — $25,400", "María López — $32,100", "Carlos Ruiz — $28,500"].map((b, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                    <span>{b.split("—")[0]}</span>
-                    <span className="font-semibold tabular-nums text-xs">{b.split("—")[1]}</span>
-                  </div>
-                ))}
-                <p className="text-[10px] text-muted-foreground">...y {selectedDisp.beneficiarios - 3} más</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase">Resumen</p>
+                <div className="flex items-center justify-between text-sm py-1 border-b">
+                  <span>Procesados exitosamente</span>
+                  <span className="font-semibold tabular-nums text-sayo-green">{selectedDisp.procesados}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm py-1">
+                  <span>Pendientes / Fallidos</span>
+                  <span className="font-semibold tabular-nums text-sayo-orange">{selectedDisp.pendientes}</span>
+                </div>
               </div>
             </div>
           )}
@@ -326,8 +474,9 @@ export default function DispersionesPage() {
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
-            <Button onClick={handleNewDispersion}>
-              <Send className="size-3.5 mr-1" /> Crear Dispersión
+            <Button onClick={handleNewDispersion} disabled={submitting}>
+              <Send className="size-3.5 mr-1" />
+              {submitting ? "Creando..." : "Crear Dispersión"}
             </Button>
           </DialogFooter>
         </DialogContent>
